@@ -93,7 +93,10 @@ def split_data_chronologically(
             "Split fractions produce an empty split; provide more rows or adjust the fractions"
         )
 
-    sorted_dataframe = dataframe.sort_values(TRANSACTION_DT, kind="mergesort")
+    if dataframe[TRANSACTION_DT].is_monotonic_increasing:
+        sorted_dataframe = dataframe
+    else:
+        sorted_dataframe = dataframe.sort_values(TRANSACTION_DT, kind="mergesort")
     split = TemporalSplit(
         train=sorted_dataframe.iloc[:train_end],
         validation=sorted_dataframe.iloc[train_end:validation_end],

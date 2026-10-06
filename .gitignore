@@ -49,9 +49,12 @@ models/**
 mlruns/
 mlartifacts/
 artifacts/
+.mlflow/
+mlflow.db*
 
 # Notebooks
 .ipynb_checkpoints/
+.jupyter/
 
 # IDE and operating-system files
 .idea/
