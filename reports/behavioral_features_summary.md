@@ -55,3 +55,27 @@ reference. Threshold metrics remain fixed at 0.50 and were not optimized.
 Entity-specific window choices or carefully selected additional entities may improve signal,
 but require separate leakage-safe validation. Graph features, rules, SHAP, and threshold
 optimization remain outside this phase.
+
+## Best feature combination
+
+This focused Phase 2.5 experiment reused the fixed LightGBM parameters and compared exactly
+the two strongest existing behavioral groups, separately and together. The first three rows
+are verified Phase 2 results; only the combined configuration required a new fit.
+
+| Feature set | Features | PR-AUC | ROC-AUC | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| frequency_plus_historical_amounts | 443 | 0.593938 | 0.919463 | 0.573609 | 0.555884 | 0.564608 |
+| frequency_plus_recency | 440 | 0.593936 | 0.924308 | 0.534618 | 0.583826 | 0.558140 |
+| frequency_only | 438 | 0.589631 | 0.921839 | 0.577205 | 0.544379 | 0.560311 |
+| frequency_plus_amounts_plus_recency | 445 | 0.589112 | 0.921464 | 0.556792 | 0.559172 | 0.557979 |
+
+- Winner: **frequency_plus_historical_amounts** with **0.593938** PR-AUC and
+  **443** features.
+- The amounts-plus-recency combination **did not improve** on the previous best of `0.593938`.
+- Combined absolute change: **-0.004826**.
+- Combined relative change: **-0.81%**.
+- Combined MLflow run: `cb3f6478222e49afb72df8b1155453a6`.
+- Experiment runtime: **93.8 seconds**.
+
+Behavioral state was fitted from TRAIN without labels. VALIDATION features used TRAIN history
+and earlier validation transactions only. The reserved final split was not accessed.
