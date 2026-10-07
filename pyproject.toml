@@ -9,6 +9,7 @@ description = "An end-to-end fraud detection and risk decisioning portfolio proj
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "catboost>=1.2,<2",
     "fastapi>=0.115,<1",
     "joblib>=1.4,<2",
     "lightgbm>=4.5,<5",
