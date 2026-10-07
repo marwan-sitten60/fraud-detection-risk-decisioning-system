@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 
 from fraud_detection.features import (
     BehavioralFeatureEngineer,
+    CompositeFeatureEngineer,
     GraphFeatureEngineer,
     Phase1FeatureEngineer,
 )
@@ -168,6 +169,7 @@ def prepare_engineered_matrices(
     evaluation: pd.DataFrame,
     *,
     include_graph: bool,
+    include_composite: bool = False,
     scaling_batch_rows: int = 50_000,
 ) -> PreparedMatrices:
     """Fit the selected existing feature pipeline on one historical fold only."""
@@ -213,6 +215,13 @@ def prepare_engineered_matrices(
     engineered_train = pd.concat([frequency_train, amount_train], axis=1)
     engineered_evaluation = pd.concat([frequency_evaluation, amount_evaluation], axis=1)
 
+    if include_composite:
+        composite_engineer = CompositeFeatureEngineer()
+        composite_train = composite_engineer.fit_transform_features(train)
+        composite_evaluation = composite_engineer.transform_features(evaluation, update_state=True)
+        engineered_train = pd.concat([engineered_train, composite_train], axis=1)
+        engineered_evaluation = pd.concat([engineered_evaluation, composite_evaluation], axis=1)
+
     if include_graph:
         graph_columns = ["TransactionID", "TransactionDT", "card1", "DeviceInfo", "addr1"]
         graph_engineer = GraphFeatureEngineer()
@@ -241,6 +250,8 @@ def prepare_engineered_matrices(
     )
     if include_graph:
         del graph_train, graph_evaluation, graph_engineer
+    if include_composite:
+        del composite_train, composite_evaluation, composite_engineer
     gc.collect()
 
     scaler = StandardScaler(copy=False)
