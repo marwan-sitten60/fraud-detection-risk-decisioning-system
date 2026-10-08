@@ -9,13 +9,23 @@ from fraud_detection.features.composite import (
     create_composite_keys,
 )
 from fraud_detection.features.graph import GraphFeatureEngineer
+from fraud_detection.features.target_encoding import (
+    BASE_TARGET_ENTITIES,
+    COMPOSITE_TARGET_ENTITIES,
+    TARGET_ENCODING_FEATURES,
+    TemporalTargetEncoder,
+)
 
 __all__ = [
     "DEFAULT_COMPOSITE_IDENTITIES",
     "BehavioralFeatureEngineer",
+    "BASE_TARGET_ENTITIES",
+    "COMPOSITE_TARGET_ENTITIES",
     "CompositeFeatureEngineer",
     "CompositeIdentity",
     "GraphFeatureEngineer",
     "Phase1FeatureEngineer",
+    "TARGET_ENCODING_FEATURES",
+    "TemporalTargetEncoder",
     "create_composite_keys",
 ]
