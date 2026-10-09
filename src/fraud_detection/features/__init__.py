@@ -13,6 +13,7 @@ from fraud_detection.features.target_encoding import (
     BASE_TARGET_ENTITIES,
     COMPOSITE_TARGET_ENTITIES,
     TARGET_ENCODING_FEATURES,
+    LabelAvailabilityStatistics,
     TemporalTargetEncoder,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "CompositeFeatureEngineer",
     "CompositeIdentity",
     "GraphFeatureEngineer",
+    "LabelAvailabilityStatistics",
     "Phase1FeatureEngineer",
     "TARGET_ENCODING_FEATURES",
     "TemporalTargetEncoder",

@@ -14,6 +14,7 @@ from fraud_detection.features import (
     BehavioralFeatureEngineer,
     CompositeFeatureEngineer,
     GraphFeatureEngineer,
+    LabelAvailabilityStatistics,
     Phase1FeatureEngineer,
     TemporalTargetEncoder,
 )
@@ -58,6 +59,8 @@ class PreparedMatrices:
     x_evaluation: np.ndarray
     feature_count: int
     feature_names: tuple[str, ...] = ()
+    target_encoding_train_statistics: LabelAvailabilityStatistics | None = None
+    target_encoding_evaluation_statistics: LabelAvailabilityStatistics | None = None
 
 
 def make_expanding_time_folds(
@@ -173,6 +176,7 @@ def prepare_engineered_matrices(
     include_graph: bool,
     include_composite: bool = False,
     include_target_encoding: bool = False,
+    target_encoding_label_delay_days: float = 0.0,
     scaling_batch_rows: int = 50_000,
 ) -> PreparedMatrices:
     """Fit the selected existing feature pipeline on one historical fold only."""
@@ -226,13 +230,22 @@ def prepare_engineered_matrices(
         engineered_evaluation = pd.concat([engineered_evaluation, composite_evaluation], axis=1)
 
     if include_target_encoding:
-        target_encoder = TemporalTargetEncoder(alpha=50.0, initial_prior=0.5)
+        target_encoder = TemporalTargetEncoder(
+            alpha=50.0,
+            initial_prior=0.5,
+            label_delay_days=target_encoding_label_delay_days,
+        )
         target_encoded_train = target_encoder.fit_transform_features(train)
         target_encoded_evaluation = target_encoder.transform_features(evaluation)
         engineered_train = pd.concat([engineered_train, target_encoded_train], axis=1)
         engineered_evaluation = pd.concat(
             [engineered_evaluation, target_encoded_evaluation], axis=1
         )
+        target_encoding_train_statistics = target_encoder.training_statistics_
+        target_encoding_evaluation_statistics = target_encoder.last_transform_statistics_
+    else:
+        target_encoding_train_statistics = None
+        target_encoding_evaluation_statistics = None
 
     if include_graph:
         graph_columns = ["TransactionID", "TransactionDT", "card1", "DeviceInfo", "addr1"]
@@ -274,4 +287,11 @@ def prepare_engineered_matrices(
         scaler.partial_fit(x_train[start : start + scaling_batch_rows])
     x_train = scaler.transform(x_train)
     x_evaluation = scaler.transform(x_evaluation)
-    return PreparedMatrices(x_train, x_evaluation, feature_count, feature_names)
+    return PreparedMatrices(
+        x_train,
+        x_evaluation,
+        feature_count,
+        feature_names,
+        target_encoding_train_statistics,
+        target_encoding_evaluation_statistics,
+    )
