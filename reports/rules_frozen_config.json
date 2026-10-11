@@ -1,0 +1,43 @@
+{
+  "thresholds": {
+    "high_amount": 444.95,
+    "extreme_amount": 1104.0,
+    "very_high_risk": 0.8832053868208527,
+    "elevated_risk": 0.028448885793415184,
+    "high_disagreement": 0.1637102772387074,
+    "rare_composite_frequency": 0.0,
+    "nontrivial_amount": 68.95
+  },
+  "rules": [
+    {
+      "rule_id": "R01",
+      "name": "Extreme risk and high amount",
+      "description": "TRAIN p99 calibrated risk and TRAIN p95 transaction amount",
+      "rule_type": "HARD",
+      "priority": 100,
+      "action": "BLOCK",
+      "reason_code": "EXTREME_RISK_HIGH_AMOUNT",
+      "predicate": "extreme_risk_amount"
+    },
+    {
+      "rule_id": "R02",
+      "name": "Component disagreement",
+      "description": "TRAIN p95 component disagreement with risk above TRAIN p75",
+      "rule_type": "SOFT",
+      "priority": 60,
+      "action": "REVIEW",
+      "reason_code": "MODEL_DISAGREEMENT",
+      "predicate": "disagreement_review"
+    },
+    {
+      "rule_id": "R03",
+      "name": "Rare composite identity",
+      "description": "Rare TRAIN reference composite frequency, elevated risk, and nontrivial amount",
+      "rule_type": "SOFT",
+      "priority": 50,
+      "action": "REVIEW",
+      "reason_code": "RARE_IDENTITY_ELEVATED_RISK",
+      "predicate": "rare_identity_review"
+    }
+  ]
+}
