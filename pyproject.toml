@@ -52,6 +52,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402"]
 "notebooks/14_probability_calibration.ipynb" = ["E501"]
+"notebooks/15_business_decisioning.ipynb" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
