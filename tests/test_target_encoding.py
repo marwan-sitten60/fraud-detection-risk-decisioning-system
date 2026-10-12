@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -155,3 +158,70 @@ def test_earliest_timestamp_uses_fixed_initial_prior() -> None:
     transformed = TemporalTargetEncoder(initial_prior=0.5).fit_transform_features(transactions())
 
     assert transformed.iloc[:2].eq(0.5).all().all()
+
+
+@pytest.mark.parametrize("delay", [0.0, 7.0])
+def test_projected_encoder_matches_saved_legacy_behavior_exactly(delay: float) -> None:
+    """The reference was captured from the unmodified encoder on a wide frame."""
+    frame = pd.DataFrame(
+        {
+            "TransactionID": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+            "TransactionDT": [
+                0,
+                0,
+                86400,
+                86400,
+                172800,
+                604800,
+                604801,
+                1209600,
+                1209600,
+                1296000,
+            ],
+            "card1": ["A", "A", "A", "B", "A", None, "C", "A", "A", "Z"],
+            "card2": [1, 1, 1, 2, 1, None, 3, 1, 1, 9],
+            "addr1": [10, 10, 10, 20, 10, None, 30, 10, 10, 99],
+            "P_emaildomain": ["a", "a", "a", "b", "a", None, "c", "a", "a", "z"],
+            "R_emaildomain": ["r", "r", "r", "s", "r", None, "t", "r", "r", "u"],
+            "DeviceInfo": ["d", "d", "d", "e", "d", None, "f", "d", "d", "g"],
+            "ProductCD": ["W", "W", "W", "C", "W", None, "R", "W", "W", "H"],
+            "isFraud": [1, 0, 1, 0, 0, 1, 0, 1, 0, 0],
+        },
+        index=[90, 70, 80, 30, 60, 40, 20, 50, 10, 0],
+    )
+    unused = pd.DataFrame(
+        {f"unused_{j}": np.arange(len(frame), dtype=np.float64) + j for j in range(300)},
+        index=frame.index,
+    )
+    wide = pd.concat([frame, unused], axis=1)
+    reference = json.loads(
+        (Path(__file__).parent / "fixtures/target_encoding_legacy_reference.json").read_text()
+    )[str(delay)]
+    encoder = TemporalTargetEncoder(label_delay_days=delay)
+    train = encoder.fit_transform_features(wide.iloc[:7])
+    future = encoder.transform_features(wide.iloc[[9, 7, 8]].drop(columns="isFraud"))
+    for actual, expected in ((train, reference["train"]), (future, reference["future"])):
+        expected_frame = pd.DataFrame(
+            expected["values"], index=expected["index"], columns=expected["columns"]
+        ).astype(dict(zip(expected["columns"], expected["dtypes"], strict=True)))
+        pd.testing.assert_frame_equal(actual, expected_frame, check_exact=True)
+    assert str(encoder.training_statistics_) == reference["fit_statistics"]
+    assert str(encoder.last_transform_statistics_) == reference["transform_statistics"]
+
+
+def test_encoder_copy_excludes_unrelated_wide_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    wide = pd.concat(
+        [transactions(), pd.DataFrame({f"unused_{j}": np.zeros(6) for j in range(300)})],
+        axis=1,
+    )
+    original_copy = pd.DataFrame.copy
+    copied_widths = []
+
+    def checked_copy(self: pd.DataFrame, *args: object, **kwargs: object) -> pd.DataFrame:
+        copied_widths.append(len(self.columns))
+        assert not any(column.startswith("unused_") for column in self.columns)
+        return original_copy(self, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "copy", checked_copy)
+    TemporalTargetEncoder().fit_transform_features(wide)
+    assert copied_widths

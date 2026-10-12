@@ -1,0 +1,17 @@
+{
+  "prediction_file": "holdout_predictions_frozen.csv",
+  "sha256": "0d7f5d117436cd7227d682388c5cceddbc72b689143984a7d186d9ec03c1391f",
+  "row_count": 88581,
+  "label_column_present": false,
+  "model_fit_scope": "TRAIN only",
+  "primary_policy": "Balanced, rules disabled",
+  "optional_rules": "frozen overlay only",
+  "amount_band_edges_train": [
+    0.0,
+    42.95,
+    68.95,
+    125.0,
+    280.0,
+    "infinity"
+  ]
+}

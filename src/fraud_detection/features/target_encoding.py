@@ -153,12 +153,24 @@ class TemporalTargetEncoder:
         history: pd.DataFrame,
     ) -> tuple[pd.DataFrame, LabelAvailabilityStatistics]:
         """Encode queries from history labels that have legally matured by query time."""
-        query_working = queries.reset_index(drop=True).copy()
+        required_columns = sorted(
+            {
+                "TransactionID",
+                "TransactionDT",
+                *BASE_TARGET_ENTITIES,
+                *(
+                    column
+                    for identity in DEFAULT_COMPOSITE_IDENTITIES
+                    for column in identity.columns
+                ),
+            }
+        )
+        query_working = queries.loc[:, required_columns].reset_index(drop=True).copy()
         query_working["__position"] = np.arange(len(query_working))
         query_working = query_working.sort_values(
             ["TransactionDT", "TransactionID"], kind="mergesort", ignore_index=True
         )
-        history_working = history.sort_values(
+        history_working = history.loc[:, [*required_columns, "isFraud"]].sort_values(
             ["TransactionDT", "TransactionID"], kind="mergesort", ignore_index=True
         )
         query_times = pd.to_numeric(query_working["TransactionDT"], errors="raise").to_numpy(

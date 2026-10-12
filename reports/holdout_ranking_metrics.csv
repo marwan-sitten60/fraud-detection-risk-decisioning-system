@@ -1,0 +1,2 @@
+n,pr_auc,roc_auc,validation_pr_auc,validation_roc_auc,pr_auc_absolute_change,pr_auc_relative_change,roc_auc_absolute_change,roc_auc_relative_change
+88581,0.5369004461052692,0.8786371582199217,0.615265,0.916224,-0.07836455389473074,-0.12736715707009294,-0.03758684178007832,-0.04102363808422216

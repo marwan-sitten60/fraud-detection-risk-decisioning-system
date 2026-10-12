@@ -1,0 +1,18 @@
+{
+  "0.0": {
+    "train_rows": 2000,
+    "evaluation_rows": 500,
+    "feature_count": 10,
+    "exact_frame_equality": true,
+    "exact_statistics_equality": true,
+    "seconds": 0.631065599998692
+  },
+  "7.0": {
+    "train_rows": 2000,
+    "evaluation_rows": 500,
+    "feature_count": 10,
+    "exact_frame_equality": true,
+    "exact_statistics_equality": true,
+    "seconds": 0.6451978999830317
+  }
+}

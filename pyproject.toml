@@ -55,6 +55,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "notebooks/15_business_decisioning.ipynb" = ["E501"]
 "notebooks/16_explainability_error_analysis.ipynb" = ["E501"]
 "notebooks/17_rules_engine.ipynb" = ["E501"]
+"notebooks/18_final_holdout_evaluation.ipynb" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

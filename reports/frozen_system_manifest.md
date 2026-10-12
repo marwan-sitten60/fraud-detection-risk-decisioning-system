@@ -16,6 +16,18 @@ On TRAIN OOF, enabling the illustrative rules increased modeled fraud transactio
 
 Rules may be reported separately as an optional post-hoc operational overlay if needed. HOLDOUT results must not be used to retune the rules or their thresholds. The frozen rule definitions, thresholds, model, calibration, features, ensemble, and business-cost configuration remain unchanged.
 
+## Final model fit scope
+
+- LightGBM: rebuild and fit on **TRAIN only**.
+- XGBoost: rebuild and fit on **TRAIN only**.
+- Feature-state fitting: **TRAIN only**, following the existing frozen temporal inference semantics.
+- Platt calibrator: use the existing frozen **TRAIN-OOF-derived** artifact; do not retrain or replace it.
+- Ensemble weights: **0.8 LightGBM / 0.2 XGBoost**, unchanged.
+- Balanced expected-cost business decisioning: unchanged.
+- Illustrative Rules Engine: frozen and **disabled by default** for the primary HOLDOUT evaluation.
+
+Do not refit boosters or feature state on TRAIN + VALIDATION for this terminal evaluation. Preserve all frozen hyperparameters, calibration, rules, thresholds, and business costs. No further VALIDATION-based tuning is permitted.
+
 ## Features and preprocessing
 
 - Count: **467**, selected in `notebooks/17_rules_engine.ipynb` from `prepare_engineered_matrices` using the established feature-name selection.
