@@ -9,6 +9,7 @@ description = "An end-to-end fraud detection and risk decisioning portfolio proj
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "alembic>=1.13,<2",
     "catboost>=1.2,<2",
     "fastapi>=0.115,<1",
     "joblib>=1.4,<2",
@@ -17,7 +18,7 @@ dependencies = [
     "mlflow>=2.17,<4",
     "numpy>=1.26,<3",
     "pandas>=2.2,<3",
-    "psycopg[binary]>=3.2,<4",
+    "psycopg>=3.2,<4",
     "pydantic>=2.9,<3",
     "python-dotenv>=1.0,<2",
     "scikit-learn>=1.5,<2",

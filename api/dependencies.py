@@ -16,6 +16,7 @@ class ApiSettings:
     """Serving settings; none can alter fitted model or policy parameters."""
 
     bundle_path: Path
+    database_url: str | None = None
     enable_rules: bool = False
     max_batch_size: int = 256
 
@@ -30,7 +31,10 @@ class ApiSettings:
         if maximum <= 0:
             raise ValueError("FRAUD_MAX_BATCH_SIZE must be positive")
         return cls(
-            bundle_path=bundle_path, enable_rules=raw_rules == "true", max_batch_size=maximum
+            bundle_path=bundle_path,
+            database_url=os.getenv("FRAUD_DATABASE_URL"),
+            enable_rules=raw_rules == "true",
+            max_batch_size=maximum,
         )
 
 

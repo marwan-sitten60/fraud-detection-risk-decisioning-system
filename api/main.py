@@ -24,9 +24,17 @@ from api.schemas import (
     PredictionRequest,
     PredictionResult,
     ReadinessResult,
+    StoredPredictionResult,
     VersionResult,
 )
 from fraud_detection.inference import FrozenFraudInferenceRuntime
+from fraud_detection.persistence import PersistenceStore
+from fraud_detection.persistence.recovery import recover_runtime
+from fraud_detection.persistence.service import (
+    PersistenceService,
+    PersistenceUnavailable,
+    PredictionConflict,
+)
 
 LOGGER = logging.getLogger("fraud_detection.api")
 LOGGER.setLevel(logging.INFO)
@@ -37,6 +45,7 @@ if not LOGGER.handlers:
 LOGGER.propagate = False
 SERVICE_VERSION = "0.1.0"
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 def _request_id(request: Request) -> str:
@@ -58,6 +67,7 @@ def create_app(
     settings: ApiSettings | None = None,
     *,
     loader: Callable[[Path], FrozenFraudInferenceRuntime] = FrozenFraudInferenceRuntime.load,
+    store: PersistenceStore | None = None,
 ) -> FastAPI:
     """Create one application whose lifespan loads one frozen runtime instance."""
     configured = settings or ApiSettings.from_env()
@@ -65,31 +75,50 @@ def create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.runtime = None
+        application.state.service = None
         application.state.ready = False
+        application.state.database_ready = False
+        application.state.state_recovered = False
+        application.state.replayed_transaction_count = 0
         application.state.inference_lock = asyncio.Lock()
         try:
             application.state.runtime = await asyncio.to_thread(loader, configured.bundle_path)
-            application.state.ready = True
-            history = application.state.runtime.feature_state.amount_engineer.history_
-            application.state.last_key = (
-                (float(history.TransactionDT.iloc[-1]), int(history.TransactionID.iloc[-1]))
-                if history is not None and not history.empty
+            application.state.store = store or (
+                PersistenceStore.from_url(configured.database_url)
+                if configured.database_url
                 else None
             )
+            if application.state.store is None:
+                raise RuntimeError("FRAUD_DATABASE_URL is required for durable inference")
+            await asyncio.to_thread(application.state.store.check_ready)
+            application.state.database_ready = True
+            recovery = await asyncio.to_thread(
+                recover_runtime, application.state.runtime, application.state.store
+            )
+            application.state.service = PersistenceService(
+                application.state.runtime, application.state.store, recovery.last_key
+            )
+            application.state.replayed_transaction_count = recovery.transaction_count
+            application.state.state_recovered = True
+            application.state.ready = True
             LOGGER.info(
                 json.dumps(
                     {
-                        "event": "bundle_loaded",
+                        "event": "runtime_recovered",
                         "bundle_version": application.state.runtime.manifest["bundle_version"],
                         "feature_count": application.state.runtime.manifest["feature_count"],
+                        "replayed_request_count": recovery.request_count,
+                        "replayed_transaction_count": recovery.transaction_count,
+                        "replay_duration_ms": round(recovery.duration_ms, 2),
                     }
                 )
             )
         except Exception:
-            LOGGER.exception("Frozen bundle startup failed; service is not ready")
+            LOGGER.exception("Frozen runtime or database recovery failed; service is not ready")
         yield
         application.state.ready = False
         application.state.runtime = None
+        application.state.service = None
 
     application = FastAPI(
         title="Frozen Fraud Inference",
@@ -103,6 +132,7 @@ def create_app(
     )
     application.state.settings = configured
     application.state.runtime = None
+    application.state.service = None
     application.state.ready = False
     application.add_exception_handler(HTTPException, http_error_handler)
     application.add_exception_handler(RequestValidationError, validation_error_handler)
@@ -136,6 +166,11 @@ def create_app(
                             runtime.manifest["bundle_version"] if runtime is not None else None
                         ),
                         "action_counts": getattr(request.state, "action_counts", {}),
+                        "idempotent_replay": getattr(request.state, "idempotent_replay", False),
+                        "validation_ms": getattr(request.state, "validation_ms", None),
+                        "db_lookup_ms": getattr(request.state, "db_lookup_ms", None),
+                        "inference_ms": getattr(request.state, "inference_ms", None),
+                        "db_write_ms": getattr(request.state, "db_write_ms", None),
                         "status_code": response.status_code,
                     }
                 )
@@ -149,17 +184,26 @@ def create_app(
     @application.get(
         "/ready",
         response_model=ReadinessResult,
-        description="Ready only after frozen bundle loading and checksum verification succeed.",
+        description="Ready after bundle verification, database schema check, and runtime replay.",
     )
     async def ready(request: Request) -> ReadinessResult:
         runtime = runtime_from_request(request)
         if not request.app.state.ready or runtime is None:
             raise HTTPException(status_code=503, detail="Frozen inference runtime is not ready")
+        try:
+            await asyncio.to_thread(request.app.state.store.check_ready)
+        except Exception as error:
+            request.app.state.ready = False
+            request.app.state.database_ready = False
+            raise HTTPException(status_code=503, detail="Database is not ready") from error
         return ReadinessResult(
             ready=True,
             bundle_version=runtime.manifest["bundle_version"],
             feature_count=runtime.manifest["feature_count"],
             rules_enabled=configured.enable_rules,
+            database_ready=True,
+            state_recovered=request.app.state.state_recovered,
+            replayed_transaction_count=request.app.state.replayed_transaction_count,
         )
 
     @application.get(
@@ -182,41 +226,44 @@ def create_app(
         )
 
     async def score(
-        request: Request, transactions: list[dict], include_rules: bool
+        request: Request, transactions: list[dict], include_rules: bool, endpoint_type: str
     ) -> pd.DataFrame:
         runtime = runtime_from_request(request)
         if not request.app.state.ready or runtime is None:
             raise HTTPException(status_code=503, detail="Frozen inference runtime is not ready")
         request.state.transaction_count = len(transactions)
+        idempotency_key = request.headers.get("X-Idempotency-Key")
+        if idempotency_key is not None and not IDEMPOTENCY_KEY_PATTERN.fullmatch(idempotency_key):
+            raise HTTPException(status_code=422, detail="Invalid X-Idempotency-Key")
         try:
             async with request.app.state.inference_lock:
-                first = transactions[0]
-                try:
-                    first_key = (float(first["TransactionDT"]), int(first["TransactionID"]))
-                except (KeyError, TypeError, ValueError):
-                    first_key = None  # The frozen input contract will report the schema error.
-                last_key = request.app.state.last_key
-                if first_key is not None and last_key is not None and first_key <= last_key:
-                    raise ValueError("Stateful transactions must follow prior TransactionDT and ID")
-                snapshot = await asyncio.to_thread(runtime.snapshot_state)
-                try:
-                    result = await asyncio.to_thread(
-                        runtime.predict_batch, transactions, include_rules=include_rules
-                    )
-                except Exception:
-                    await asyncio.to_thread(runtime.restore_state, snapshot)
-                    raise
-                last = transactions[-1]
-                request.app.state.last_key = (
-                    float(last["TransactionDT"]),
-                    int(last["TransactionID"]),
+                result = await asyncio.to_thread(
+                    request.app.state.service.score,
+                    endpoint_type,
+                    transactions,
+                    rules_enabled=include_rules,
+                    idempotency_key=idempotency_key,
+                    correlation_id=request.state.request_id,
                 )
             column = "final_decision" if include_rules else "base_decision"
-            request.state.action_counts = dict(Counter(result[column].tolist()))
-            return result
+            request.state.action_counts = dict(Counter(result.frame[column].tolist()))
+            request.state.idempotent_replay = result.replayed
+            request.state.validation_ms = round(result.validation_ms, 2)
+            request.state.db_lookup_ms = round(result.db_lookup_ms, 2)
+            request.state.inference_ms = round(result.inference_ms, 2)
+            request.state.db_write_ms = round(result.db_write_ms, 2)
+            return result.frame
+        except PredictionConflict as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         except ValueError as error:
             client_error = classify_input_error(error)
             raise client_error from error
+        except PersistenceUnavailable as error:
+            request.app.state.ready = False
+            request.app.state.database_ready = False
+            raise HTTPException(
+                status_code=503, detail="Durable inference store is unavailable"
+            ) from error
         except Exception as error:
             LOGGER.exception("Frozen inference request failed")
             raise HTTPException(status_code=500, detail="Internal inference failure") from error
@@ -235,7 +282,7 @@ def create_app(
         include_rules = (
             configured.enable_rules if body.include_rules is None else body.include_rules
         )
-        result = await score(request, [body.transaction], include_rules)
+        result = await score(request, [body.transaction], include_rules, "predict")
         return _response_row(result.iloc[0])
 
     @application.post(
@@ -264,13 +311,34 @@ def create_app(
         include_rules = (
             configured.enable_rules if body.include_rules is None else body.include_rules
         )
-        result = await score(request, body.transactions, include_rules)
+        result = await score(request, body.transactions, include_rules, "predict_batch")
         predictions = [_response_row(row) for _, row in result.iterrows()]
         return BatchPredictionResult(
             predictions=predictions,
             count=len(predictions),
             bundle_version=result.bundle_version.iloc[0],
         )
+
+    @application.get(
+        "/predictions/{transaction_id}",
+        response_model=StoredPredictionResult,
+        response_model_exclude_none=True,
+        description="Look up a stored prediction and safe audit identifiers, without raw payload.",
+    )
+    async def stored_prediction(request: Request, transaction_id: int) -> StoredPredictionResult:
+        if not request.app.state.ready:
+            raise HTTPException(status_code=503, detail="Durable inference store is not ready")
+        try:
+            found = await asyncio.to_thread(
+                request.app.state.service.lookup_prediction, transaction_id
+            )
+        except Exception as error:
+            raise HTTPException(
+                status_code=503, detail="Durable inference store is unavailable"
+            ) from error
+        if found is None:
+            raise HTTPException(status_code=404, detail="Prediction not found")
+        return StoredPredictionResult.model_validate(found)
 
     return application
 

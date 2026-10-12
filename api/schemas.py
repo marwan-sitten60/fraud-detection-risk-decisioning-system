@@ -1,5 +1,6 @@
 """Explicit request and response models for frozen risk scoring."""
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -48,6 +49,15 @@ class ReadinessResult(BaseModel):
     ready: bool
     bundle_version: str
     feature_count: int
+    rules_enabled: bool
+    database_ready: bool
+    state_recovered: bool
+    replayed_transaction_count: int
+
+
+class StoredPredictionResult(PredictionResult):
+    request_id: str
+    scored_at: datetime
     rules_enabled: bool
 
 

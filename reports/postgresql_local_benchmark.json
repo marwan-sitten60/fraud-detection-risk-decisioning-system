@@ -1,0 +1,15 @@
+{
+  "backend": "SQLite local test; no live PostgreSQL configured",
+  "validation_ms": 42.108000023290515,
+  "db_lookup_ms": 8.812199987005442,
+  "inference_ms": 19759.838800004218,
+  "db_write_ms": 17.03849999466911,
+  "total_request_ms": 19846.83770002448,
+  "runtime_timings_seconds": {
+    "feature_seconds": 19.754348999995273,
+    "model_seconds": 0.0031387000053655356,
+    "calibration_decision_seconds": 0.002156500006094575,
+    "total_seconds": 19.759644400008256
+  },
+  "row_count": 1
+}
