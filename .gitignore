@@ -71,3 +71,5 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
+
+reports/runtime_golden_input_prefix.parquet
