@@ -1,0 +1,29 @@
+{
+  "bundle_path": "C:\\fraud-detection-system\\models\\frozen_v1",
+  "bundle_bytes": 24482230,
+  "feature_count": 467,
+  "golden_prefix_rows": 512,
+  "golden_max_absolute_differences": {
+    "lightgbm_score": 7.327694007130958e-12,
+    "xgboost_score": 1.1102230246251565e-16,
+    "ensemble_score": 5.862088592323289e-12,
+    "calibrated_probability": 4.607536574496862e-12
+  },
+  "score_tolerance_absolute": 1e-11,
+  "base_decisions_exact": true,
+  "optional_rules_decisions_and_triggers_exact": true,
+  "fresh_process_no_raw_train_csv": true,
+  "independent_reload_parity": true,
+  "batch_vs_sequential_rows": 3,
+  "batch_vs_sequential_parity": true,
+  "reset_parity": true,
+  "load_seconds": 4.177051799983019,
+  "feature_seconds": 20.328838399989763,
+  "model_seconds": 0.00960829999530688,
+  "calibration_decision_seconds": 0.053252600017003715,
+  "total_batch_seconds": 20.391699799976777,
+  "throughput_rows_per_second": 25.108255075458842,
+  "rss_before_bytes": 272334848,
+  "rss_after_load_bytes": 622342144,
+  "rss_after_inference_bytes": 659443712
+}
