@@ -1,0 +1,51 @@
+{
+  "fixture": "reports/runtime_golden_input_prefix.parquet (first 6 label-free chronological rows)",
+  "server": "uvicorn api.main:app --workers 1",
+  "bundle_version": "frozen_v1",
+  "feature_count": 467,
+  "rules_enabled_by_default": false,
+  "endpoint_statuses": {
+    "/health": 200,
+    "/ready": 200,
+    "/version": 200,
+    "/openapi.json": 200
+  },
+  "prediction_statuses": [
+    {
+      "scenario": "first",
+      "status": 200,
+      "request_id_returned": true
+    },
+    {
+      "scenario": "warm",
+      "status": 200,
+      "request_id_returned": true
+    },
+    {
+      "scenario": "batch",
+      "status": 200,
+      "request_id_returned": true
+    }
+  ],
+  "first_request_ms": 19650.72460001707,
+  "warm_single_ms": 18914.505700021982,
+  "batch_rows": 4,
+  "batch_ms": 19096.426200002432,
+  "batch_rows_per_sec": 0.2094632764322934,
+  "server_working_set_bytes": 740859904,
+  "server_private_bytes": 1506349056,
+  "direct_runtime_parity": {
+    "max_abs_differences": {
+      "lightgbm_score": 0,
+      "xgboost_score": 0,
+      "ensemble_score": 0,
+      "calibrated_probability": 0,
+      "expected_cost_approve": 0,
+      "expected_cost_review": 0,
+      "expected_cost_block": 0
+    },
+    "decisions_exact": true,
+    "rules_exact": true,
+    "ids_exact": true
+  }
+}
