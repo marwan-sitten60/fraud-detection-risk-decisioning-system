@@ -125,3 +125,38 @@ class AuditEvent(Base):
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", JSON_TYPE)
+
+
+class MonitoringSnapshot(Base):
+    __tablename__ = "monitoring_snapshots"
+    __table_args__ = (
+        Index("ix_monitoring_window", "window_start", "window_end"),
+        Index("ix_monitoring_evaluated_at", "evaluated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    bundle_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    mature_label_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSON_TYPE, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class MonitoringAlert(Base):
+    __tablename__ = "monitoring_alerts"
+    __table_args__ = (Index("ix_monitoring_alert_severity_created", "severity", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("monitoring_snapshots.id", ondelete="CASCADE"), nullable=False
+    )
+    alert_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    metric_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    observed_value: Mapped[float | None] = mapped_column(Float)
+    threshold_reference: Mapped[str] = mapped_column(String(256), nullable=False)
+    message: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

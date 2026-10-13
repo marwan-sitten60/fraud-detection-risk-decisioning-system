@@ -136,6 +136,8 @@ class FeedbackService:
         evaluation_time: datetime,
         bundle_version: str | None = None,
         rules_enabled: bool | None = None,
+        from_time: datetime | None = None,
+        to_time: datetime | None = None,
     ) -> dict:
         """Select scalar prediction fields; never fetch transaction.raw_payload."""
         query = (
@@ -168,6 +170,10 @@ class FeedbackService:
             query = query.where(InferenceRequest.bundle_version == bundle_version)
         if rules_enabled is not None:
             query = query.where(InferenceRequest.rules_enabled == rules_enabled)
+        if from_time is not None:
+            query = query.where(Prediction.predicted_at >= from_time)
+        if to_time is not None:
+            query = query.where(Prediction.predicted_at < to_time)
         with self.store.sessions() as session:
             records = session.execute(query).all()
         mature_rows = []
@@ -212,6 +218,11 @@ class FeedbackService:
                 }
             )
         policies = sorted({row["policy"] for row in mature_rows})
+        metrics = calculate(mature_rows)
+        sample_size = metrics["sample_size"]
+        fraud_count = round((metrics["fraud_prevalence"] or 0.0) * sample_size)
+        legitimate_count = sample_size - fraud_count
+        performance_supported = sample_size >= 200 and fraud_count >= 20 and legitimate_count >= 20
         return {
             "evaluation_time": evaluation_time.isoformat(),
             "coverage_denominator": (
@@ -223,7 +234,8 @@ class FeedbackService:
             "immature_labels": immature,
             "mature_label_coverage": len(mature_rows) / len(records) if records else None,
             "label_sources": sources,
-            "metrics": calculate(mature_rows),
+            "status": "available" if performance_supported else "insufficient_labels",
+            "metrics": metrics,
             "by_policy": {
                 policy: calculate([row for row in mature_rows if row["policy"] == policy])
                 for policy in policies

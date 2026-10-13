@@ -13,11 +13,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from api.dependencies import ApiSettings, runtime_from_request
+from api.dependencies import ROOT, ApiSettings, runtime_from_request
 from api.errors import classify_input_error, http_error_handler, validation_error_handler
 from api.schemas import (
     BatchPredictionRequest,
@@ -38,6 +38,7 @@ from fraud_detection.feedback.schemas import (
 )
 from fraud_detection.feedback.service import LabelConflict, UnknownPrediction
 from fraud_detection.inference import FrozenFraudInferenceRuntime
+from fraud_detection.monitoring.service import MonitoringService, choose_window
 from fraud_detection.persistence import PersistenceStore
 from fraud_detection.persistence.recovery import recover_runtime
 from fraud_detection.persistence.service import (
@@ -54,6 +55,8 @@ if not LOGGER.handlers:
     LOGGER.addHandler(handler)
 LOGGER.propagate = False
 SERVICE_VERSION = "0.1.0"
+FROM_QUERY = Query(default=None, alias="from")
+TO_QUERY = Query(default=None, alias="to")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
@@ -109,6 +112,9 @@ def create_app(
                 application.state.runtime, application.state.store, recovery.last_key
             )
             application.state.feedback = FeedbackService(application.state.store)
+            application.state.monitoring = MonitoringService(
+                application.state.store, ROOT / "models/monitoring_v1"
+            )
             application.state.replayed_transaction_count = recovery.transaction_count
             application.state.state_recovered = True
             application.state.ready = True
@@ -409,6 +415,90 @@ def create_app(
             )
         except Exception as error:
             raise HTTPException(status_code=503, detail="Feedback store is unavailable") from error
+
+    def monitoring_service(request: Request) -> MonitoringService:
+        if not request.app.state.ready or not hasattr(request.app.state, "monitoring"):
+            raise HTTPException(status_code=503, detail="Monitoring service is not ready")
+        return request.app.state.monitoring
+
+    async def monitoring_evaluation(
+        request: Request,
+        window: str,
+        from_time: datetime | None,
+        to_time: datetime | None,
+        persist: bool = False,
+    ) -> dict:
+        evaluated_at = datetime.now(UTC)
+        try:
+            start, end = choose_window(window, evaluated_at, from_time, to_time)
+            return await asyncio.to_thread(
+                monitoring_service(request).evaluate,
+                start,
+                end,
+                evaluated_at,
+                database_ready=request.app.state.database_ready,
+                state_recovered=request.app.state.state_recovered,
+                persist=persist,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except HTTPException:
+            raise
+        except Exception as error:
+            raise HTTPException(
+                status_code=503, detail="Monitoring store is unavailable"
+            ) from error
+
+    @application.get("/monitoring/summary")
+    async def monitoring_summary(
+        request: Request,
+        window: str = "24h",
+        from_time: datetime | None = FROM_QUERY,
+        to_time: datetime | None = TO_QUERY,
+    ) -> dict:
+        return await monitoring_evaluation(request, window, from_time, to_time)
+
+    @application.get("/monitoring/drift")
+    async def monitoring_drift(
+        request: Request,
+        window: str = "24h",
+        from_time: datetime | None = FROM_QUERY,
+        to_time: datetime | None = TO_QUERY,
+    ) -> dict:
+        result = await monitoring_evaluation(request, window, from_time, to_time)
+        return {
+            key: result[key]
+            for key in ("window_start", "window_end", "evaluated_at", "drift", "alerts")
+        }
+
+    @application.get("/monitoring/alerts")
+    async def monitoring_alerts(
+        request: Request, limit: int = 100, severity: str | None = None
+    ) -> dict:
+        if not 1 <= limit <= 500:
+            raise HTTPException(status_code=422, detail="limit must be between 1 and 500")
+        if severity is not None and severity.upper() not in {"INFO", "WARNING", "CRITICAL"}:
+            raise HTTPException(status_code=422, detail="Invalid alert severity")
+        try:
+            alerts = await asyncio.to_thread(
+                monitoring_service(request).list_alerts, limit, severity
+            )
+            return {"alerts": alerts, "count": len(alerts)}
+        except HTTPException:
+            raise
+        except Exception as error:
+            raise HTTPException(
+                status_code=503, detail="Monitoring store is unavailable"
+            ) from error
+
+    @application.post("/monitoring/snapshot")
+    async def monitoring_snapshot(
+        request: Request,
+        window: str = "24h",
+        from_time: datetime | None = FROM_QUERY,
+        to_time: datetime | None = TO_QUERY,
+    ) -> dict:
+        return await monitoring_evaluation(request, window, from_time, to_time, persist=True)
 
     return application
 

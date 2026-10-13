@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from fraud_detection.persistence.models import Base, InferenceRequest, Prediction, Transaction
 
-REVISION = "20261012_01"
+REVISION = "20261013_01"
 
 
 class PersistenceStore:
