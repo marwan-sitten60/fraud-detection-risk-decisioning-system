@@ -9,6 +9,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +28,15 @@ from api.schemas import (
     StoredPredictionResult,
     VersionResult,
 )
+from fraud_detection.feedback import FeedbackService
+from fraud_detection.feedback.schemas import (
+    LabelBatchInput,
+    LabelBatchResult,
+    LabelInput,
+    LabelResult,
+    utc,
+)
+from fraud_detection.feedback.service import LabelConflict, UnknownPrediction
 from fraud_detection.inference import FrozenFraudInferenceRuntime
 from fraud_detection.persistence import PersistenceStore
 from fraud_detection.persistence.recovery import recover_runtime
@@ -98,6 +108,7 @@ def create_app(
             application.state.service = PersistenceService(
                 application.state.runtime, application.state.store, recovery.last_key
             )
+            application.state.feedback = FeedbackService(application.state.store)
             application.state.replayed_transaction_count = recovery.transaction_count
             application.state.state_recovered = True
             application.state.ready = True
@@ -339,6 +350,65 @@ def create_app(
         if found is None:
             raise HTTPException(status_code=404, detail="Prediction not found")
         return StoredPredictionResult.model_validate(found)
+
+    def feedback_service(request: Request) -> FeedbackService:
+        if not request.app.state.ready:
+            raise HTTPException(status_code=503, detail="Durable feedback store is not ready")
+        return request.app.state.feedback
+
+    async def ingest_labels(request: Request, labels: list[LabelInput]) -> list[LabelResult]:
+        try:
+            rows = await asyncio.to_thread(feedback_service(request).ingest, labels)
+        except UnknownPrediction as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except LabelConflict as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except Exception as error:
+            raise HTTPException(status_code=503, detail="Feedback store is unavailable") from error
+        return [LabelResult.model_validate(row) for row in rows]
+
+    @application.post("/labels", response_model=LabelResult)
+    async def post_label(request: Request, body: LabelInput) -> LabelResult:
+        return (await ingest_labels(request, [body]))[0]
+
+    @application.post("/labels/batch", response_model=LabelBatchResult)
+    async def post_labels_batch(request: Request, body: LabelBatchInput) -> LabelBatchResult:
+        labels = await ingest_labels(request, body.labels)
+        return LabelBatchResult(
+            labels=labels,
+            count=len(labels),
+            created_count=sum(not label.replayed for label in labels),
+        )
+
+    @application.get("/labels/{transaction_id}", response_model=LabelResult)
+    async def get_label(request: Request, transaction_id: int) -> LabelResult:
+        try:
+            row = await asyncio.to_thread(feedback_service(request).lookup, transaction_id)
+        except Exception as error:
+            raise HTTPException(status_code=503, detail="Feedback store is unavailable") from error
+        if row is None:
+            raise HTTPException(status_code=404, detail="Label not found")
+        return LabelResult.model_validate(row)
+
+    @application.get("/feedback/summary")
+    async def feedback_summary(
+        request: Request,
+        evaluation_time: datetime | None = None,
+        bundle_version: str | None = None,
+        rules_enabled: bool | None = None,
+    ) -> dict:
+        try:
+            at = utc(evaluation_time) if evaluation_time is not None else datetime.now(UTC)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        try:
+            return await asyncio.to_thread(
+                feedback_service(request).summary, at, bundle_version, rules_enabled
+            )
+        except Exception as error:
+            raise HTTPException(status_code=503, detail="Feedback store is unavailable") from error
 
     return application
 

@@ -2,6 +2,7 @@
 
 import gc
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -13,9 +14,11 @@ from api.main import create_app
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from fraud_detection.feedback import FeedbackService
+from fraud_detection.feedback.schemas import LabelInput
 from fraud_detection.inference import FrozenFraudInferenceRuntime
 from fraud_detection.persistence import PersistenceStore
-from fraud_detection.persistence.models import Prediction
+from fraud_detection.persistence.models import FraudLabel, Prediction
 from fraud_detection.persistence.recovery import recover_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +85,21 @@ def test_frozen_api_parity_and_restart_recovery(tmp_path: Path, monkeypatch) -> 
     del app
     gc.collect()
 
+    now = datetime.now(UTC)
+    FeedbackService(store).ingest(
+        [
+            LabelInput.model_validate(
+                {
+                    "TransactionID": rows[0]["TransactionID"],
+                    "is_fraud": True,
+                    "label_source": "synthetic_test",
+                    "observed_at": now,
+                    "matured_at": now,
+                }
+            )
+        ]
+    )
+
     restored = FrozenFraudInferenceRuntime.load(ROOT / "models/frozen_v1")
     recovery = recover_runtime(restored, store)
     assert (recovery.request_count, recovery.transaction_count) == (2, 3)
@@ -95,3 +113,5 @@ def test_frozen_api_parity_and_restart_recovery(tmp_path: Path, monkeypatch) -> 
     assert observed_next["triggered_rule_ids"] == expected_next["triggered_rule_ids"]
     with store.sessions() as session:
         assert session.scalar(select(func.count()).select_from(Prediction)) == 3
+        label = session.get(FraudLabel, rows[0]["TransactionID"])
+        assert label.applied_to_model_state_at is None
