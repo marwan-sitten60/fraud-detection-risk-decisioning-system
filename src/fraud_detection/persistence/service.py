@@ -235,6 +235,7 @@ class PersistenceService:
                             row_position=position,
                         )
                     )
+                    session.flush()
                     rule_ids = prediction.get("triggered_rule_ids", "")
                     session.add(
                         Prediction(
