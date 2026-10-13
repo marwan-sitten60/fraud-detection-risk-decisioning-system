@@ -334,3 +334,57 @@ class PersistenceService:
         payload["scored_at"] = prediction.predicted_at
         payload["rules_enabled"] = request.rules_enabled
         return payload
+
+    def list_predictions(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        from_time: datetime | None = None,
+        to_time: datetime | None = None,
+        decision: str | None = None,
+    ) -> list[dict]:
+        """List audit-safe prediction fields without selecting stored transaction payloads."""
+        from sqlalchemy import case, select
+
+        from fraud_detection.persistence.models import InferenceRequest, Prediction
+
+        effective_decision = case(
+            (InferenceRequest.rules_enabled, Prediction.final_decision),
+            else_=Prediction.base_decision,
+        )
+        query = (
+            select(Prediction, InferenceRequest, effective_decision.label("decision"))
+            .join(InferenceRequest, Prediction.request_sequence == InferenceRequest.sequence)
+            .where(InferenceRequest.status == "success")
+            .order_by(Prediction.predicted_at.desc(), Prediction.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if from_time is not None:
+            query = query.where(Prediction.predicted_at >= from_time)
+        if to_time is not None:
+            query = query.where(Prediction.predicted_at < to_time)
+        if decision is not None:
+            query = query.where(effective_decision == decision.upper())
+        with self.store.sessions() as session:
+            records = session.execute(query).all()
+        return [
+            {
+                "TransactionID": prediction.transaction_id,
+                "scored_at": prediction.predicted_at,
+                "calibrated_probability": prediction.calibrated_probability,
+                "lightgbm_score": prediction.lightgbm_score,
+                "xgboost_score": prediction.xgboost_score,
+                "ensemble_score": prediction.ensemble_score,
+                "base_decision": prediction.base_decision,
+                "final_decision": prediction.final_decision,
+                "decision": decision_value,
+                "expected_cost_approve": prediction.expected_cost_approve,
+                "expected_cost_review": prediction.expected_cost_review,
+                "expected_cost_block": prediction.expected_cost_block,
+                "triggered_rule_ids": prediction.triggered_rule_ids,
+                "bundle_version": prediction.bundle_version,
+            }
+            for prediction, _request, decision_value in records
+        ]

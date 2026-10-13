@@ -337,6 +337,49 @@ def create_app(
         )
 
     @application.get(
+        "/predictions",
+        description=(
+            "List recent audit-safe prediction fields. Stored raw transaction payloads and "
+            "feature vectors are never returned."
+        ),
+    )
+    async def list_predictions(
+        request: Request,
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0, le=100_000),
+        from_time: datetime | None = FROM_QUERY,
+        to_time: datetime | None = TO_QUERY,
+        decision: str | None = None,
+    ) -> dict:
+        if not request.app.state.ready:
+            raise HTTPException(status_code=503, detail="Durable prediction store is not ready")
+        if decision is not None and decision.upper() not in {"APPROVE", "REVIEW", "BLOCK"}:
+            raise HTTPException(status_code=422, detail="Invalid decision filter")
+        try:
+            if (
+                from_time is not None
+                and (from_time.tzinfo is None or from_time.utcoffset() is None)
+            ) or (to_time is not None and (to_time.tzinfo is None or to_time.utcoffset() is None)):
+                raise ValueError("Prediction time filters must be timezone-aware")
+            if from_time is not None and to_time is not None and from_time >= to_time:
+                raise ValueError("from_time must precede to_time")
+            items = await asyncio.to_thread(
+                request.app.state.service.list_predictions,
+                limit=limit,
+                offset=offset,
+                from_time=from_time,
+                to_time=to_time,
+                decision=decision,
+            )
+            return {"items": items, "count": len(items), "limit": limit, "offset": offset}
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except Exception as error:
+            raise HTTPException(
+                status_code=503, detail="Durable prediction store is unavailable"
+            ) from error
+
+    @application.get(
         "/predictions/{transaction_id}",
         response_model=StoredPredictionResult,
         response_model_exclude_none=True,

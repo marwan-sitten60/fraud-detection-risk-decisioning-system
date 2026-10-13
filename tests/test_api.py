@@ -177,6 +177,37 @@ def test_health_ready_version_and_load_once() -> None:
         assert len(calls) == 1
 
 
+def test_recent_predictions_are_paginated_filtered_and_audit_safe() -> None:
+    app, _ = app_for(StubRuntime())
+    with TestClient(app) as client:
+        for identifier, timestamp, include_rules in (
+            (1, 10, False),
+            (2, 11, True),
+            (3, 12, False),
+        ):
+            response = client.post(
+                "/predict",
+                json={
+                    "transaction": transaction(identifier, timestamp, amount=200),
+                    "include_rules": include_rules,
+                },
+            )
+            assert response.status_code == 200
+        all_rows = client.get("/predictions?limit=2&offset=0")
+        assert all_rows.status_code == 200
+        assert all_rows.json()["count"] == 2
+        assert [row["TransactionID"] for row in all_rows.json()["items"]] == [3, 2]
+        review = client.get("/predictions?decision=REVIEW&limit=20")
+        assert review.status_code == 200
+        assert all(row["decision"] == "REVIEW" for row in review.json()["items"])
+        assert client.get("/predictions?decision=HOLD").status_code == 422
+        assert client.get("/predictions?limit=201").status_code == 422
+        assert all(
+            "raw_payload" not in row and "feature_vector" not in row
+            for row in all_rows.json()["items"]
+        )
+
+
 def test_schema_and_chronology_errors_are_clear_and_sanitized() -> None:
     app, _ = app_for(StubRuntime(), maximum=2)
     with TestClient(app) as client:
