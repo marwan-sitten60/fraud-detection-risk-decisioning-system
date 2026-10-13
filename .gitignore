@@ -73,3 +73,7 @@ Thumbs.db
 
 
 reports/runtime_golden_input_prefix.parquet
+reports/simulation_latest.json
+reports/simulation_runs/
+reports/simulation_api_stdout.log
+reports/simulation_api_stderr.log

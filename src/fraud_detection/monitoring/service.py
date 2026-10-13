@@ -257,7 +257,7 @@ class MonitoringService:
             },
         }
         if persist:
-            self.persist(
+            result["snapshot_id"] = self.persist(
                 start, end, evaluated_at, total_tx, feedback["mature_labels"], result, alerts
             )
         return result
@@ -303,6 +303,8 @@ class MonitoringService:
             session.flush()
             for alert in alerts:
                 session.add(MonitoringAlert(snapshot_id=snapshot.id, **alert))
+            session.flush()
+            return snapshot.id
 
     def list_alerts(self, limit: int = 100, severity: str | None = None) -> list[dict]:
         query = select(MonitoringAlert).order_by(MonitoringAlert.created_at.desc()).limit(limit)

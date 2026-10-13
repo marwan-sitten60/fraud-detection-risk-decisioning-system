@@ -404,6 +404,8 @@ def create_app(
         evaluation_time: datetime | None = None,
         bundle_version: str | None = None,
         rules_enabled: bool | None = None,
+        from_time: datetime | None = FROM_QUERY,
+        to_time: datetime | None = TO_QUERY,
     ) -> dict:
         try:
             at = utc(evaluation_time) if evaluation_time is not None else datetime.now(UTC)
@@ -411,7 +413,12 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(error)) from error
         try:
             return await asyncio.to_thread(
-                feedback_service(request).summary, at, bundle_version, rules_enabled
+                feedback_service(request).summary,
+                at,
+                bundle_version,
+                rules_enabled,
+                from_time,
+                to_time,
             )
         except Exception as error:
             raise HTTPException(status_code=503, detail="Feedback store is unavailable") from error

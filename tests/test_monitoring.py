@@ -85,6 +85,7 @@ def test_monitoring_summary_window_and_snapshot_do_not_score() -> None:
             params={"from": start.isoformat(), "to": end.isoformat()},
         )
         assert snap.status_code == 200
+        assert isinstance(snap.json()["snapshot_id"], int)
         assert snap.json()["system"]["transactions_scored"] == 30
         assert snap.json()["alerts"]
         assert all(before[key].equals(runtime.snapshot_state()[key]) for key in before)

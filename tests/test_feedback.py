@@ -67,6 +67,7 @@ def test_label_lifecycle_batch_atomicity_and_stored_feedback() -> None:
         result = client.get("/feedback/summary").json()
         assert (result["total_predictions"], result["labels_received"]) == (3, 3)
         assert (result["mature_labels"], result["immature_labels"]) == (2, 1)
+        assert result["status"] == "insufficient_labels"
         assert result["mature_label_coverage"] == pytest.approx(2 / 3)
         assert result["metrics"]["pr_auc"] is not None
         assert result["metrics"]["stored_score_means"]["lightgbm_score"] > 0
@@ -78,6 +79,20 @@ def test_label_lifecycle_batch_atomicity_and_stored_feedback() -> None:
         assert result["label_delays"]["transaction_to_observed"] is None
         assert "raw_payload" not in str(result)
         assert "raw_payload" not in str(client.get("/labels/1").json())
+        scoped = client.get(
+            "/feedback/summary",
+            params={
+                "from": (observed - timedelta(minutes=1)).isoformat(),
+                "to": (datetime.now(UTC) + timedelta(minutes=1)).isoformat(),
+            },
+        ).json()
+        assert scoped["total_predictions"] == 3
+        empty = client.get(
+            "/feedback/summary",
+            params={"from": "2020-01-01T00:00:00Z", "to": "2020-01-02T00:00:00Z"},
+        ).json()
+        assert empty["total_predictions"] == 0
+        assert empty["status"] == "insufficient_labels"
         with store.sessions() as session:
             saved = session.get(FraudLabel, 1)
             assert saved.label_source == "synthetic_test"
