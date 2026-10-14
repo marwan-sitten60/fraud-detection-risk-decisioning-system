@@ -38,18 +38,18 @@ The deeper online, offline development, label, monitoring, and deployment diagra
 
 ```mermaid
 flowchart LR
-    Client[External client or simulator] --> API[FastAPI, one worker]
-    API --> Runtime[Frozen feature runtime]
-    Runtime --> Models[LightGBM 80% + XGBoost 20%]
-    Models --> Cal[Platt calibration]
-    Cal --> Decision[Illustrative expected-cost decision]
-    Decision --> Response[APPROVE / REVIEW / BLOCK]
-    API <--> DB[(PostgreSQL 17)]
-    DB --> Services[Monitoring and feedback API]
-    Services --> UI[FraudGuard Streamlit]
-    Labeler[Trusted external label source] --> LabelAPI[/labels API]
-    LabelAPI --> Labels[(fraud_labels)]
-    Labels --> Mature[Mature-label performance metrics]
+    Client["External Client / Simulator"] --> API["FastAPI — Single Worker"]
+    API --> Runtime["Frozen Feature Runtime"]
+    Runtime --> Models["LightGBM 80% + XGBoost 20%"]
+    Models --> Cal["Platt Calibration"]
+    Cal --> Decision["Illustrative Expected-Cost Decision"]
+    Decision --> Response["APPROVE / REVIEW / BLOCK"]
+    API <--> DB[("PostgreSQL 17")]
+    DB --> Services["Monitoring & Feedback APIs"]
+    Services --> UI["FraudGuard Streamlit Dashboard"]
+    Labeler["Trusted External Label Source"] --> LabelAPI["/labels API"]
+    LabelAPI --> Labels[("fraud_labels")]
+    Labels --> Mature["Mature-Label Performance Metrics"]
     Mature --> Services
 ```
 

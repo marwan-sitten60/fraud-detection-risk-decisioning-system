@@ -6,15 +6,15 @@ This repository is a local, production-style portfolio demonstration. It does no
 
 ```mermaid
 flowchart LR
-    TRAIN[TRAIN partition only] --> CV[Expanding chronological folds]
-    CV --> FE[Leakage-controlled feature experiments]
-    FE --> CAND[Candidate models and features]
-    CAND --> SEL[OOF blend, calibration, and policy selection]
-    SEL --> VAL[Development VALIDATION assessment]
-    VAL --> FREEZE[Freeze model, features, calibrator, and policy]
-    FREEZE --> HOLD[Terminal HOLDOUT evaluation once]
-    FREEZE --> BUNDLE[frozen_v1 artifacts]
-    HOLD --> LOCK[Locked terminal result]
+    TRAIN["TRAIN Partition Only"] --> CV["Expanding Chronological Folds"]
+    CV --> FE["Leakage-Controlled Feature Experiments"]
+    FE --> CAND["Candidate Models and Features"]
+    CAND --> SEL["OOF Blend, Calibration, and Policy Selection"]
+    SEL --> VAL["Development VALIDATION Assessment"]
+    VAL --> FREEZE["Freeze Model, Features, Calibrator, and Policy"]
+    FREEZE --> HOLD["Terminal HOLDOUT Evaluation Once"]
+    FREEZE --> BUNDLE["frozen_v1 Artifacts"]
+    HOLD --> LOCK["Locked Terminal Result"]
     HOLD -. no feedback into tuning .-> SEL
 ```
 
@@ -24,19 +24,19 @@ The dataset is split in time order: 413,378 TRAIN, 88,581 VALIDATION, and 88,581
 
 ```mermaid
 flowchart LR
-    CLIENT[External client or simulator] --> API[FastAPI, one worker]
-    API --> CONTRACT[433-column label-free input contract]
-    CONTRACT --> FEAT[Frozen chronological feature runtime]
-    FEAT --> LGB[LightGBM]
-    FEAT --> XGB[XGBoost]
-    LGB --> BLEND[80/20 probability blend]
+    CLIENT["External Client / Simulator"] --> API["FastAPI — Single Worker"]
+    API --> CONTRACT["433-Column Label-Free Input Contract"]
+    CONTRACT --> FEAT["Frozen Chronological Feature Runtime"]
+    FEAT --> LGB["LightGBM"]
+    FEAT --> XGB["XGBoost"]
+    LGB --> BLEND["80/20 Probability Blend"]
     XGB --> BLEND
-    BLEND --> CAL[TRAIN-OOF Platt calibrator]
-    CAL --> COST[Balanced illustrative expected costs]
-    COST --> ACTION[APPROVE / REVIEW / BLOCK]
-    API <--> DB[(PostgreSQL)]
-    API --> RESULT[Prediction response]
-    DB --> RECOVER[Startup replay of successful requests]
+    BLEND --> CAL["TRAIN-OOF Platt Calibrator"]
+    CAL --> COST["Balanced Illustrative Expected Costs"]
+    COST --> ACTION["APPROVE / REVIEW / BLOCK"]
+    API <--> DB[("PostgreSQL 17")]
+    API --> RESULT["Prediction Response"]
+    DB --> RECOVER["Startup Replay of Successful Requests"]
     RECOVER --> FEAT
 ```
 
@@ -48,13 +48,13 @@ At process startup, the API verifies the frozen bundle and schema, then replays 
 
 ```mermaid
 flowchart LR
-    Source[Trusted external outcome source] --> API[POST /labels]
-    API --> LABELS[(fraud_labels)]
-    PRED[(Stored predictions)] --> JOIN[Feedback service joins stored outcomes]
+    Source["Trusted External Outcome Source"] --> API["POST /labels"]
+    API --> LABELS[("fraud_labels")]
+    PRED[("Stored Predictions")] --> JOIN["Feedback Service Joins Stored Outcomes"]
     LABELS --> JOIN
-    JOIN --> READY{Mature and sufficient support?}
-    READY -->|yes| METRICS[Mature-label metrics]
-    READY -->|no| NULL[Insufficient support; metrics unavailable]
+    JOIN --> READY{"Mature and Sufficient Support?"}
+    READY -->|yes| METRICS["Mature-Label Metrics"]
+    READY -->|no| NULL["Insufficient Support; Metrics Unavailable"]
 ```
 
 Labels can represent a later chargeback, trusted fraud report, or analyst resolution. The source supplies observation and maturity timestamps. Immature labels can be stored but do not enter performance calculations until mature. Label ingestion never updates frozen features, calibration, or policy.
@@ -63,14 +63,14 @@ Labels can represent a later chargeback, trusted fraud report, or analyst resolu
 
 ```mermaid
 flowchart LR
-    DB[(PostgreSQL request, prediction, and label records)] --> MF[Monitoring and feedback services]
-    REF[Fixed TRAIN-based reference] --> MF
-    MF --> LF[Label-free signals: PSI, JS divergence, score and decision drift, novelty, health, latency]
-    MF --> ML[Mature-label performance and coverage]
-    LF --> SNAP[Persisted snapshots and alerts]
+    DB[("PostgreSQL Request, Prediction, and Label Records")] --> MF["Monitoring and Feedback Services"]
+    REF["Fixed TRAIN-Based Reference"] --> MF
+    MF --> LF["Label-Free Signals: PSI, JS Divergence, Score and Decision Drift, Novelty, Health, Latency"]
+    MF --> ML["Mature-Label Performance and Coverage"]
+    LF --> SNAP["Persisted Snapshots and Alerts"]
     ML --> SNAP
-    SNAP --> API[Monitoring API]
-    API --> DASH[FraudGuard dashboard]
+    SNAP --> API["Monitoring API"]
+    API --> DASH["FraudGuard Dashboard"]
 ```
 
 A drift signal is evidence of a changed distribution, not proof of model failure. Performance degradation requires mature labels and sufficient support. No alert triggers automatic retraining.
@@ -79,10 +79,10 @@ A drift signal is evidence of a changed distribution, not proof of model failure
 
 ```mermaid
 flowchart LR
-    DB[(PostgreSQL 17 named volume)] --> MIG[One-shot Alembic migration]
-    MIG --> API[FastAPI, one worker]
-    API --> DASH[Streamlit FraudGuard]
-    Client[Local caller or simulator] --> API
+    DB[("PostgreSQL 17 Named Volume")] --> MIG["One-Shot Alembic Migration"]
+    MIG --> API["FastAPI — Single Worker"]
+    API --> DASH["Streamlit FraudGuard"]
+    Client["Local Caller or Simulator"] --> API
 ```
 
 Compose health checks gate startup: the database becomes healthy before migration, migration must finish successfully before API startup, and dashboard waits for API health. The API is intentionally single-worker because mutable chronological feature history is process-local. PostgreSQL enables recovery after restart; it does not coordinate live histories across replicas.
