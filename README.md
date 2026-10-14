@@ -1,16 +1,36 @@
-﻿# Fraud Detection & Risk Decisioning System
+# Fraud Detection & Risk Decisioning System
 
-A portfolio and production-style demonstration of an end-to-end fraud risk decisioning system built with IEEE-CIS Fraud Detection data and local or synthetic development traffic. It connects an imbalanced ranking model to calibrated risk, business actions, durable audit records, delayed outcomes, and monitoring.
+**Temporal ML, calibrated fraud risk, and cost-aware decisions in a recoverable FastAPI + PostgreSQL system with a Streamlit operations dashboard.**
 
-This repository does not represent a bank deployment or live financial-institution traffic.
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Deployment-Docker%20Compose-2496ED?logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-235%20passed-2ea44f)
 
-## Why this project exists
+**Run locally:** copy .env.example to .env, set POSTGRES_PASSWORD, then run docker compose build and docker compose up -d. Defaults: API at localhost:8000 and Dashboard at localhost:8501.
 
-Fraud detection is more than classification accuracy. A useful system must rank rare events, estimate risk for decisions, choose an action under explicit cost assumptions, preserve an audit trail, and observe outcomes that may arrive later.
+> A portfolio and production-style demonstration using IEEE-CIS Fraud Detection data and local or synthetic development traffic. It does not represent a bank deployment or live financial-institution traffic.
 
-**Transaction → temporal and behavioral signals → risk estimate → calibrated probability → business decision → persisted audit → delayed outcomes → monitoring**
+## At a Glance
 
-Model risk estimation and business decisioning are separate: LightGBM and XGBoost estimate risk, Platt calibration maps the ensemble score to a probability, and an illustrative expected-cost policy chooses APPROVE, REVIEW, or BLOCK.
+| Metric | Verified result |
+|---|---|
+| Dataset / fraud prevalence | 590,540 transactions / ~3.50% |
+| Model features | 467 |
+| Development validation (PR-AUC / ROC-AUC) | 0.615265 / 0.916224 |
+| Final terminal HOLDOUT (PR-AUC / ROC-AUC) | 0.536900 / 0.878637 |
+| Fraud transaction / amount capture | 62.25% / 76.49% |
+| Latest verified full test suite | 235 passed |
+
+Capture is from the frozen Balanced expected-cost policy with rules disabled. REVIEW capture assumes an illustrative 80% review detection rate; these are modeled metrics, not observed prevention or savings.
+
+## What I Built
+
+Temporal ML research → leakage-controlled features → 80/20 LightGBM + XGBoost ensemble → Platt calibration → expected-cost APPROVE / REVIEW / BLOCK decisions<br>
+→ frozen inference runtime → FastAPI → PostgreSQL audit, idempotency, and recovery → delayed labels → drift monitoring → traffic simulator → FraudGuard dashboard → Docker Compose.
+
+Fraud detection needs more than classification accuracy: the system ranks rare events, estimates risk, chooses actions under explicit cost assumptions, preserves an audit trail, and tracks outcomes as they mature. Risk estimation and business decisioning remain separate.
 
 ## Architecture
 
@@ -33,7 +53,7 @@ flowchart LR
     Mature --> Services
 ```
 
-## Key results
+## Key Results
 
 | Stage | PR-AUC | ROC-AUC |
 |---|---:|---:|
@@ -44,17 +64,18 @@ The later HOLDOUT had lower ranking performance: PR-AUC decreased by 0.078365 an
 
 Under the frozen Balanced expected-cost policy, with rules disabled, final HOLDOUT fraud transaction capture was **62.25%** and fraud amount capture was **76.49%**. These are modeled metrics; REVIEW capture assumes an illustrative 80% review detection rate. They are not observed review outcomes, prevented fraud, or financial savings.
 
-## Dataset and modeling
+## FraudGuard Demo
 
-The IEEE-CIS labeled transaction file contains 590,540 rows with roughly 3.50% fraud. The chronological development split used 413,378 TRAIN rows, 88,581 VALIDATION rows, and 88,581 later HOLDOUT rows. TRAIN prevalence was 3.52%.
+FraudGuard is a read-only, API-backed Streamlit dashboard. It calls FastAPI, not PostgreSQL or the model directly, and identifies its local or simulated environment.
 
-Fold-local preprocessing and past-only histories prevent future rows from contributing to earlier features; rows sharing a timestamp do not see each other. The final frozen pipeline has 467 model features.
+- **Overview:** traffic, risk, decision, alert, and feedback summaries.
+- **Transactions:** search and inspect stored scores, decisions, and expected costs.
+- **Monitoring:** drift measures, sample counts, service signals, and alerts.
+- **Feedback:** label coverage, maturity, and metrics when support is sufficient.
+- **Simulation:** allowlisted run summaries and replay measurements.
+- **System Health:** liveness, readiness, recovered state, and frozen bundle details.
 
-The development path included Logistic Regression, LightGBM, XGBoost, frequency and missingness features, time transformations, past transaction behavior, composite identities, graph features, temporal target encoding, CatBoost, sample weighting, ensembling, calibration, expected-cost decisions, optional rules, and TreeSHAP diagnostics. Historical/composite features and temporal target encoding were retained. CatBoost trailed the preferred LightGBM challenger, time-decay weighting did not beat unweighted fitting, and graph ablations were mixed and are not in the final feature bundle.
-
-The selected risk model is an 80/20 LightGBM/XGBoost probability blend. It improved PR-AUC over LightGBM alone by about 0.0031 on the out-of-fold development comparison. Platt calibration was selected using TRAIN out-of-fold predictions. TreeSHAP supported component-model interpretation and error analysis; it does not establish causation or explain the calibrated business decision exactly. Detailed records are indexed in [reports/README.md](reports/README.md).
-
-The frozen rules overlay improved some fraud-capture measures but increased modeled expected cost and review burden. It remains available for analysis and is disabled by default in the primary policy.
+**Optional screenshots:** none are currently available in the repository. After manual capture, add sanitized images under docs/images/ for Overview, Monitoring, and Transaction Inspection. Do not include credentials, local paths, or raw transaction payloads.
 
 ## Production-style system
 
@@ -70,7 +91,20 @@ The immutable TRAIN-fitted bundle is in **models/frozen_v1**. Normal inference l
 - **FraudGuard** is a read-only Streamlit dashboard. It calls FastAPI, not PostgreSQL or the model directly.
 - **Docker Compose** runs PostgreSQL 17, a one-shot migration job, FastAPI, and Streamlit. The named volume retained data during a verified full Compose restart.
 
-## Quick start: Docker Compose
+## Key Engineering Decisions
+
+- **Chronological evaluation:** use a temporal split instead of a random split to reflect future traffic.
+- **Rare-event metric:** prioritize PR-AUC for ranking fraud in an imbalanced dataset; report ROC-AUC as a complementary measure.
+- **Leakage control:** fit preprocessing within folds and build behavioral histories from past events only. Rows sharing a timestamp do not see each other.
+- **Ensemble:** blend LightGBM and XGBoost 80/20; the blend improved PR-AUC over LightGBM alone by about 0.0031 on the out-of-fold development comparison.
+- **Calibrate before decisioning:** fit Platt calibration using TRAIN out-of-fold predictions before mapping scores to actions.
+- **Use expected cost:** choose APPROVE, REVIEW, or BLOCK from explicit cost assumptions instead of a fixed 0.5 probability threshold.
+- **Keep rules optional:** rules are disabled by default because the overlay increased modeled expected cost and review burden.
+- **Separate delayed labels:** outcomes are persisted for later evaluation and do not update inference or recovery state.
+- **Separate monitoring signals:** input, score, and service drift can be tracked without labels; predictive performance requires sufficiently mature labels.
+- **Keep one API worker:** chronological feature state is process-local. PostgreSQL supports restart recovery but does not coordinate live state across multiple workers.
+
+## Quick Start
 
 No raw dataset is needed for normal frozen inference or the Docker demo.
 
@@ -91,7 +125,13 @@ To stop while preserving PostgreSQL data:
 
 docker compose down -v removes the named volume and deletes its database contents.
 
-## API overview
+## Monitoring and Feedback
+
+Input and score drift, decision mix, entity novelty, request health and latency, and label coverage can be measured before outcomes mature. Numeric drift uses PSI; categorical drift uses Jensen-Shannon divergence. Drift signals a distribution change; it does not by itself prove model failure.
+
+Trusted outcomes may arrive later through chargebacks, fraud reports, analyst resolution, or another validated source. Performance metrics such as PR-AUC, ROC-AUC, Brier score, and fraud capture require mature labels joined to stored predictions. Feedback reports insufficient support instead of presenting metrics from too few labels. Labels do not update model features, calibration, or policy.
+
+## API
 
 Interactive OpenAPI documentation is available at /docs.
 
@@ -104,26 +144,9 @@ Interactive OpenAPI documentation is available at /docs.
 
 Prediction requests follow the frozen raw-input contract and remain chronological by TransactionDT then TransactionID. Target labels are rejected. Use X-Idempotency-Key for retryable requests.
 
-## Labels and monitoring
-
-Input and score drift, decision mix, entity novelty, request health and latency, and label coverage can be measured before outcomes mature. Numeric drift uses PSI; categorical drift uses Jensen-Shannon divergence. Drift signals a distribution change; it does not by itself prove model failure.
-
-Trusted outcomes may arrive later through chargebacks, fraud reports, analyst resolution, or another validated source. Performance metrics such as PR-AUC, ROC-AUC, Brier score, and fraud capture require mature labels joined to stored predictions. Feedback reports insufficient support instead of presenting metrics from too few labels. Labels do not update model features, calibration, or policy.
-
-## Simulator and dashboard
+## Traffic Simulator
 
 The simulator preserves chronological row order and batch boundaries while sending through the HTTP API. It supports synthetic and development replay sources, idempotent retries, delayed label scheduling, time compression, target versus achieved throughput, replay lag, and a drifted scenario. Throughput is a local software measurement, not model performance or an SLA. Feature generation is the main local inference bottleneck.
-
-FraudGuard provides six API-backed pages:
-
-- **Overview:** traffic, risk, decision, alert, and feedback summaries.
-- **Transactions:** search and inspect stored scores, decisions, and expected costs.
-- **Monitoring:** backend drift measures, sample counts, service signals, and alerts.
-- **Feedback:** label coverage, maturity, and metrics when support is sufficient.
-- **Simulation:** allowlisted run summaries and replay measurements.
-- **System Health:** liveness, readiness, recovered state, and frozen bundle details.
-
-The dashboard identifies the environment as local or simulated and does not query PostgreSQL directly.
 
 ## Manual development setup
 
@@ -138,7 +161,7 @@ For local serving, configure FRAUD_DATABASE_URL outside version control, apply m
 
     python -m streamlit run dashboard/app.py
 
-## Testing and release checks
+## Testing
 
 Final automated verification on 2026-10-14 passed **235 pytest tests** with 8 existing scikit-learn deprecation warnings. Ruff lint and formatting passed. Docker health and Compose configuration passed; Alembic reported 20261013_01 (head) with no schema drift. See the [Docker verification report](reports/docker_deployment_summary.md) and [final release summary](reports/final_project_release_summary.md).
 
@@ -155,7 +178,7 @@ Final automated verification on 2026-10-14 passed **235 pytest tests** with 8 ex
 
 A production system would need an externally coordinated ordered feature-state service, managed PostgreSQL, secret management, authentication and authorization, centralized observability, and an evaluated retention policy. A separately governed model lifecycle could use matured labels for temporal retraining and calibration, followed by champion/challenger evaluation and shadow or canary promotion. None of these capabilities are implemented here.
 
-## Repository map
+## Repository Map
 
     api/                         FastAPI application
     dashboard/                   FraudGuard Streamlit UI
@@ -168,6 +191,27 @@ A production system would need an externally coordinated ordered feature-state s
     tests/                       Automated tests
     docker-compose.yml           Local four-service stack
 
-## Data and license notice
+## Deep Dive
+
+- [Report index](reports/README.md)
+- [Final terminal HOLDOUT evaluation](reports/final_holdout_evaluation_summary.md)
+- [Production monitoring](reports/production_monitoring_summary.md)
+- [Traffic simulator](reports/traffic_simulator_summary.md)
+- [Docker deployment](reports/docker_deployment_summary.md)
+- [Final release summary](reports/final_project_release_summary.md)
+
+### Modeling Details
+
+The IEEE-CIS labeled transaction file contains 590,540 rows with roughly 3.50% fraud. The chronological development split used 413,378 TRAIN rows, 88,581 VALIDATION rows, and 88,581 later HOLDOUT rows. TRAIN prevalence was 3.52%.
+
+Fold-local preprocessing and past-only histories prevent future rows from contributing to earlier features; rows sharing a timestamp do not see each other. The final frozen pipeline has 467 model features.
+
+The development path included Logistic Regression, LightGBM, XGBoost, frequency and missingness features, time transformations, past transaction behavior, composite identities, graph features, temporal target encoding, CatBoost, sample weighting, ensembling, calibration, expected-cost decisions, optional rules, and TreeSHAP diagnostics. Historical/composite features and temporal target encoding were retained. CatBoost trailed the preferred LightGBM challenger, time-decay weighting did not beat unweighted fitting, and graph ablations were mixed and are not in the final feature bundle.
+
+The selected risk model is an 80/20 LightGBM/XGBoost probability blend. It improved PR-AUC over LightGBM alone by about 0.0031 on the out-of-fold development comparison. Platt calibration was selected using TRAIN out-of-fold predictions. TreeSHAP supported component-model interpretation and error analysis; it does not establish causation or explain the calibrated business decision exactly. Detailed records are indexed in [reports/README.md](reports/README.md).
+
+The frozen rules overlay improved some fraud-capture measures but increased modeled expected cost and review burden. It remains available for analysis and is disabled by default in the primary policy.
+
+### Data and License
 
 The IEEE-CIS data is not included. Obtain it through the [IEEE-CIS Fraud Detection competition](https://www.kaggle.com/competitions/ieee-fraud-detection) and follow its terms. The repository has no LICENSE file; no software license is asserted by this project.
