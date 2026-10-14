@@ -10,7 +10,7 @@
 
 **Run locally:** copy .env.example to .env, set POSTGRES_PASSWORD, then run docker compose build and docker compose up -d. Defaults: API at localhost:8000 and Dashboard at localhost:8501.
 
-> A portfolio and production-style demonstration using IEEE-CIS Fraud Detection data and local or synthetic development traffic. It does not represent a bank deployment or live financial-institution traffic.
+> **Scope:** Portfolio demonstration using IEEE-CIS data and local or synthetic development traffic—not a bank deployment or a system processing real customer traffic. v1 does not automatically retrain or scale horizontally, and modeled costs are not claimed monetary savings.
 
 ## At a Glance
 
@@ -27,10 +27,17 @@ Capture is from the frozen Balanced expected-cost policy with rules disabled. RE
 
 ## What I Built
 
-Temporal ML research → leakage-controlled features → 80/20 LightGBM + XGBoost ensemble → Platt calibration → expected-cost APPROVE / REVIEW / BLOCK decisions<br>
-→ frozen inference runtime → FastAPI → PostgreSQL audit, idempotency, and recovery → delayed labels → drift monitoring → traffic simulator → FraudGuard dashboard → Docker Compose.
+Fraud detection needs more than classification accuracy: this system ranks rare events, calibrates risk, chooses actions under explicit cost assumptions, and persists operations for audit and recovery. Delayed outcomes support mature-label monitoring without silently changing the frozen model.
 
-Fraud detection needs more than classification accuracy: the system ranks rare events, estimates risk, chooses actions under explicit cost assumptions, preserves an audit trail, and tracks outcomes as they mature. Risk estimation and business decisioning remain separate.
+## Project Journey
+
+**Research:** 1. Data & EDA → 2. Temporal TRAIN / VALIDATION / HOLDOUT split → 3. Logistic Regression, LightGBM, and XGBoost baselines → 4. Frequency, behavioral, graph, and composite-identity feature experiments → 5. Past-only temporal target encoding
+
+**Model selection:** 6. LightGBM + XGBoost ensemble → 7. Platt calibration → 8. Expected-cost decisions → 9. Explainability and optional rules challenge → 10. Freeze the ML system → 11. One-time terminal HOLDOUT evaluation
+
+**Serving and operations:** 12. Frozen inference runtime → 13. FastAPI serving → 14. PostgreSQL persistence, audit, and recovery → 15. Delayed labels and feedback → 16. Monitoring and alerts → 17. Traffic simulator → 18. FraudGuard dashboard → 19. Docker Compose deployment
+
+Not every experiment was retained: CatBoost, graph features, time-decay weighting, and the optional rules overlay did not justify inclusion under the temporal and business-cost criteria. The ML system was frozen before terminal HOLDOUT evaluation; later productionization did not retune it. See [Modeling Details](#modeling-details) for experiment outcomes.
 
 ## Architecture
 
