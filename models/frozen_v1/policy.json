@@ -1,0 +1,18 @@
+{
+  "primary_policy": "Balanced expected-cost, rules disabled",
+  "rules_enabled_by_default": false,
+  "ensemble_weights": {
+    "lightgbm": 0.8,
+    "xgboost": 0.2
+  },
+  "target_encoding_label_delay_days": 0.0,
+  "fit_scope": "TRAIN only",
+  "balanced_cost_config": {
+    "fraud_loss_multiplier": 1.0,
+    "manual_review_cost": 3.0,
+    "review_fraud_detection_rate": 0.8,
+    "legitimate_review_friction_cost": 1.0,
+    "false_decline_cost": 25.0,
+    "block_operational_cost": 0.5
+  }
+}

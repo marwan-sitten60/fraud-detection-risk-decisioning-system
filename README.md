@@ -1,139 +1,173 @@
-# Fraud Detection and Risk Decisioning System
+﻿# Fraud Detection & Risk Decisioning System
 
-A production-minded portfolio project for detecting fraudulent card transactions and turning
-model probabilities into explainable business decisions. The project will use the IEEE-CIS
-Fraud Detection dataset and will be developed incrementally from data validation through model
-serving, monitoring, and retraining.
+A portfolio and production-style demonstration of an end-to-end fraud risk decisioning system built with IEEE-CIS Fraud Detection data and local or synthetic development traffic. It connects an imbalanced ranking model to calibrated risk, business actions, durable audit records, delayed outcomes, and monitoring.
 
-> **Current status:** repository foundation only. No dataset, analysis, trained model, API,
-> dashboard, database integration, or deployment has been implemented yet.
+This repository does not represent a bank deployment or live financial-institution traffic.
 
-## Business problem
+## Why this project exists
 
-Payment fraud creates direct financial loss, operational cost, and customer friction. A useful
-fraud system must do more than rank transactions: it must convert risk into an approve, review,
-or block decision while balancing fraud loss against false declines and manual-review capacity.
+Fraud detection is more than classification accuracy. A useful system must rank rare events, estimate risk for decisions, choose an action under explicit cost assumptions, preserve an audit trail, and observe outcomes that may arrive later.
 
-## Why fraud detection is challenging
+**Transaction → temporal and behavioral signals → risk estimate → calibrated probability → business decision → persisted audit → delayed outcomes → monitoring**
 
-- Fraud is rare, so accuracy can look high even for an ineffective model.
-- Fraud patterns change as attackers adapt and customer behavior evolves.
-- Labels often arrive late after investigations or chargebacks.
-- False positives have real costs, including lost revenue and poor customer experience.
-- Transaction data can leak future information unless validation respects time.
-- Decisions need to be explainable and observable in production.
+Model risk estimation and business decisioning are separate: LightGBM and XGBoost estimate risk, Platt calibration maps the ensemble score to a probability, and an illustrative expected-cost policy chooses APPROVE, REVIEW, or BLOCK.
 
-## Planned architecture
+## Architecture
 
-```text
-Transaction
-    ↓
-Feature Engineering
-    ↓
-Tabular ML Model
-    ↓
-Graph-Based Features
-    ↓
-Rules Engine
-    ↓
-Risk Score
-    ↓
-Approve / Review / Block
-    ↓
-Prediction Storage
-    ↓
-Feedback
-    ↓
-Monitoring
-    ↓
-Retraining
+The deeper online, offline development, label, monitoring, and deployment diagrams are in [docs/architecture.md](docs/architecture.md).
+
+```mermaid
+flowchart LR
+    Client[External client or simulator] --> API[FastAPI, one worker]
+    API --> Runtime[Frozen feature runtime]
+    Runtime --> Models[LightGBM 80% + XGBoost 20%]
+    Models --> Cal[Platt calibration]
+    Cal --> Decision[Illustrative expected-cost decision]
+    Decision --> Response[APPROVE / REVIEW / BLOCK]
+    API <--> DB[(PostgreSQL 17)]
+    DB --> Services[Monitoring and feedback API]
+    Services --> UI[FraudGuard Streamlit]
+    Labeler[Trusted external label source] --> LabelAPI[/labels API]
+    LabelAPI --> Labels[(fraud_labels)]
+    Labels --> Mature[Mature-label performance metrics]
+    Mature --> Services
 ```
 
-The exact component boundaries may evolve as the data and operational requirements become
-clear. PostgreSQL is planned for prediction storage, MLflow for experiment tracking and model
-registry, FastAPI for serving, and Streamlit for a demonstration dashboard.
+## Key results
 
-## Repository layout
+| Stage | PR-AUC | ROC-AUC |
+|---|---:|---:|
+| Development validation | 0.615265 | 0.916224 |
+| Final terminal HOLDOUT | 0.536900 | 0.878637 |
 
-```text
-.
-├── api/                     # Future FastAPI application
-├── configs/                 # Versioned, non-secret experiment configuration
-├── dashboard/               # Future Streamlit application
-├── data/                    # Local data stages (contents ignored by Git)
-├── docker/                  # Future container definitions
-├── models/                  # Local trained artifacts (ignored by Git)
-├── notebooks/               # Exploratory work, added only when substantive
-├── reports/                 # Generated reports and figures
-├── scripts/                 # Command-line workflow entry points
-├── src/fraud_detection/     # Installable Python package
-├── tests/                   # Automated tests
-└── .github/workflows/       # Future CI workflows
-```
+The later HOLDOUT had lower ranking performance: PR-AUC decreased by 0.078365 and ROC-AUC by 0.037587 in absolute terms. This indicates temporal distribution shift and shows why future-time evaluation matters. Validation is not the final performance estimate, and the HOLDOUT result was not used for tuning.
 
-## Local setup
+Under the frozen Balanced expected-cost policy, with rules disabled, final HOLDOUT fraud transaction capture was **62.25%** and fraud amount capture was **76.49%**. These are modeled metrics; REVIEW capture assumes an illustrative 80% review detection rate. They are not observed review outcomes, prevented fraud, or financial savings.
 
-Python 3.11 or newer is required.
+## Dataset and modeling
 
-### macOS or Linux
+The IEEE-CIS labeled transaction file contains 590,540 rows with roughly 3.50% fraud. The chronological development split used 413,378 TRAIN rows, 88,581 VALIDATION rows, and 88,581 later HOLDOUT rows. TRAIN prevalence was 3.52%.
 
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-cp .env.example .env
-```
+Fold-local preprocessing and past-only histories prevent future rows from contributing to earlier features; rows sharing a timestamp do not see each other. The final frozen pipeline has 467 model features.
 
-### Windows PowerShell
+The development path included Logistic Regression, LightGBM, XGBoost, frequency and missingness features, time transformations, past transaction behavior, composite identities, graph features, temporal target encoding, CatBoost, sample weighting, ensembling, calibration, expected-cost decisions, optional rules, and TreeSHAP diagnostics. Historical/composite features and temporal target encoding were retained. CatBoost trailed the preferred LightGBM challenger, time-decay weighting did not beat unweighted fitting, and graph ablations were mixed and are not in the final feature bundle.
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
-```
+The selected risk model is an 80/20 LightGBM/XGBoost probability blend. It improved PR-AUC over LightGBM alone by about 0.0031 on the out-of-fold development comparison. Platt calibration was selected using TRAIN out-of-fold predictions. TreeSHAP supported component-model interpretation and error analysis; it does not establish causation or explain the calibrated business decision exactly. Detailed records are indexed in [reports/README.md](reports/README.md).
 
-Edit `.env` for the local environment. It is excluded from version control.
+The frozen rules overlay improved some fraud-capture measures but increased modeled expected cost and review burden. It remains available for analysis and is disabled by default in the primary policy.
 
-## Development commands
+## Production-style system
 
-With the virtual environment active, use the Make targets where `make` is available:
+The immutable TRAIN-fitted bundle is in **models/frozen_v1**. Normal inference loads this bundle and does not need raw IEEE-CIS data.
 
-```bash
-make test
-make lint
-make format
-```
+- **FastAPI** validates label-free chronological inputs and serves single or batch predictions.
+- **PostgreSQL** stores request sequences, label-free payloads, predictions, audit events, delayed labels, and monitoring snapshots.
+- **Idempotency** returns a stored result for an identical retry; a changed request with the same key returns 409.
+- **Recovery** rebuilds non-label history from successful requests in original sequence and batch boundaries.
+- **Delayed feedback** accepts outcomes after prediction; labels do not silently update the frozen model.
+- **Monitoring** separates label-free drift and service signals from mature-label performance.
+- **Simulator** sends chronological traffic through the HTTP API and supports time compression, delayed labels, backpressure, and a drifted scenario.
+- **FraudGuard** is a read-only Streamlit dashboard. It calls FastAPI, not PostgreSQL or the model directly.
+- **Docker Compose** runs PostgreSQL 17, a one-shot migration job, FastAPI, and Streamlit. The named volume retained data during a verified full Compose restart.
 
-The equivalent cross-platform Python commands are:
+## Quick start: Docker Compose
 
-```bash
-python -m pytest
-python -m ruff check .
-python -m ruff format --check .
-python -m ruff check --fix .
-python -m ruff format .
-```
+No raw dataset is needed for normal frozen inference or the Docker demo.
 
-## Planned development phases
+In PowerShell:
 
-1. **Foundation** — package structure, configuration, code-quality tooling, and smoke tests.
-2. **Data understanding** — acquire IEEE-CIS data manually, validate schemas, perform EDA, and
-   establish leakage-safe time-based splits.
-3. **Modeling** — engineer tabular features, build LightGBM/XGBoost baselines, address class
-   imbalance, calibrate probabilities, and evaluate business costs.
-4. **Decisioning and explainability** — add cost-sensitive thresholds, rules, graph-derived
-   features, and SHAP explanations.
-5. **Serving and persistence** — expose predictions through FastAPI, store them in PostgreSQL,
-   and build a Streamlit dashboard.
-6. **MLOps** — add MLflow tracking and registry, drift monitoring, delayed-label simulation,
-   retraining, and champion/challenger comparisons.
-7. **Delivery** — containerize components, expand pytest coverage, and add GitHub Actions CI/CD.
+    Copy-Item .env.example .env
+    # Edit .env and set POSTGRES_PASSWORD to a strong, unique, local-only value.
+    docker compose build
+    docker compose up -d
+    docker compose ps
+    Invoke-RestMethod http://localhost:8000/ready
 
-## Data policy
+Open API documentation at http://localhost:8000/docs and FraudGuard at http://localhost:8501. On macOS or Linux, use cp .env.example .env. Keep .env private; it is ignored by Git. Docker binds to loopback by default.
 
-The IEEE-CIS dataset is not downloaded automatically and must not be committed. Place local
-source files under `data/raw/`; Git ignores files inside all data-stage directories.
+To stop while preserving PostgreSQL data:
 
+    docker compose down
+
+docker compose down -v removes the named volume and deletes its database contents.
+
+## API overview
+
+Interactive OpenAPI documentation is available at /docs.
+
+| Category | Endpoints |
+|---|---|
+| System | GET /health, GET /ready, GET /version |
+| Inference and audit | POST /predict, POST /predict/batch, GET /predictions, GET /predictions/{transaction_id} |
+| Feedback | POST /labels, POST /labels/batch, GET /labels/{transaction_id}, GET /feedback/summary |
+| Monitoring | GET /monitoring/summary, GET /monitoring/drift, GET /monitoring/alerts, POST /monitoring/snapshot |
+
+Prediction requests follow the frozen raw-input contract and remain chronological by TransactionDT then TransactionID. Target labels are rejected. Use X-Idempotency-Key for retryable requests.
+
+## Labels and monitoring
+
+Input and score drift, decision mix, entity novelty, request health and latency, and label coverage can be measured before outcomes mature. Numeric drift uses PSI; categorical drift uses Jensen-Shannon divergence. Drift signals a distribution change; it does not by itself prove model failure.
+
+Trusted outcomes may arrive later through chargebacks, fraud reports, analyst resolution, or another validated source. Performance metrics such as PR-AUC, ROC-AUC, Brier score, and fraud capture require mature labels joined to stored predictions. Feedback reports insufficient support instead of presenting metrics from too few labels. Labels do not update model features, calibration, or policy.
+
+## Simulator and dashboard
+
+The simulator preserves chronological row order and batch boundaries while sending through the HTTP API. It supports synthetic and development replay sources, idempotent retries, delayed label scheduling, time compression, target versus achieved throughput, replay lag, and a drifted scenario. Throughput is a local software measurement, not model performance or an SLA. Feature generation is the main local inference bottleneck.
+
+FraudGuard provides six API-backed pages:
+
+- **Overview:** traffic, risk, decision, alert, and feedback summaries.
+- **Transactions:** search and inspect stored scores, decisions, and expected costs.
+- **Monitoring:** backend drift measures, sample counts, service signals, and alerts.
+- **Feedback:** label coverage, maturity, and metrics when support is sufficient.
+- **Simulation:** allowlisted run summaries and replay measurements.
+- **System Health:** liveness, readiness, recovered state, and frozen bundle details.
+
+The dashboard identifies the environment as local or simulated and does not query PostgreSQL directly.
+
+## Manual development setup
+
+For model research, use Python 3.11 or newer:
+
+    python -m venv .venv
+    python -m pip install -e ".[dev]"
+
+Offline model work requires separately obtained IEEE-CIS files. Place train_transaction.csv and train_identity.csv under data/raw/. The data is not included and must not be redistributed from this repository. Normal frozen inference does not read those files.
+
+For local serving, configure FRAUD_DATABASE_URL outside version control, apply migrations with python -m alembic upgrade head, then run Uvicorn with one worker. Set FRAUD_API_BASE_URL before starting Streamlit.
+
+    python -m streamlit run dashboard/app.py
+
+## Testing and release checks
+
+Final automated verification on 2026-10-14 passed **235 pytest tests** with 8 existing scikit-learn deprecation warnings. Ruff lint and formatting passed. Docker health and Compose configuration passed; Alembic reported 20261013_01 (head) with no schema drift. See the [Docker verification report](reports/docker_deployment_summary.md) and [final release summary](reports/final_project_release_summary.md).
+
+## Limitations
+
+- The API uses one worker because chronological feature history is process-local. PostgreSQL supports restart recovery but does not coordinate live state across workers; horizontal scaling is not safe in this version.
+- The demonstration uses local, synthetic, and development replay traffic. It is not a bank deployment and has no production SLA.
+- Authentication and authorization are not implemented.
+- There is no automatic retraining.
+- Business costs and review effectiveness are illustrative assumptions, not measured financial outcomes.
+- Stateful feature generation is computationally expensive for local single-row inference.
+
+## Future production work
+
+A production system would need an externally coordinated ordered feature-state service, managed PostgreSQL, secret management, authentication and authorization, centralized observability, and an evaluated retention policy. A separately governed model lifecycle could use matured labels for temporal retraining and calibration, followed by champion/challenger evaluation and shadow or canary promotion. None of these capabilities are implemented here.
+
+## Repository map
+
+    api/                         FastAPI application
+    dashboard/                   FraudGuard Streamlit UI
+    migrations/                  Alembic schema revisions
+    models/frozen_v1/            Immutable inference artifacts
+    models/monitoring_v1/         Fixed TRAIN-based monitoring reference
+    reports/                     Evaluation and engineering records
+    scripts/                     Build, simulation, and verification commands
+    src/fraud_detection/         Reusable feature, model, persistence, and service code
+    tests/                       Automated tests
+    docker-compose.yml           Local four-service stack
+
+## Data and license notice
+
+The IEEE-CIS data is not included. Obtain it through the [IEEE-CIS Fraud Detection competition](https://www.kaggle.com/competitions/ieee-fraud-detection) and follow its terms. The repository has no LICENSE file; no software license is asserted by this project.

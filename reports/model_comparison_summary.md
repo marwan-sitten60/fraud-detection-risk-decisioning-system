@@ -42,7 +42,7 @@ optimized for business cost.
 ## MLflow
 
 - Experiment: `fraud-detection-model-comparison`
-- Tracking URI: `sqlite:///C:/fraud-detection-system/model_comparison.db`
+- Tracking URI: `sqlite:///./model_comparison.db`
 - **LightGBM:** best run `b9c11c3ae13a49afbfc8e4342eff7a81`
 - **XGBoost:** best run `1e0ad5e44daf4081a17620902b55efc6`
 - **Logistic Regression:** best run `723edaee63bc40de9fc325135877a1d4`

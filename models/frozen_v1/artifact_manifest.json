@@ -1,0 +1,70 @@
+{
+  "bundle_version": "frozen_v1",
+  "creation_purpose": "Artifact materialization of the terminal evaluated TRAIN-only system",
+  "fit_scope": "TRAIN only",
+  "feature_count": 467,
+  "ordered_feature_names_sha256": "65c0c29dffb0132229d666128374ef419edf5f19b0f3613b9a262385b84c79d1",
+  "lightgbm_configuration": {
+    "learning_rate": 0.1,
+    "n_estimators": 400,
+    "num_leaves": 63,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "xgboost_configuration": {
+    "learning_rate": 0.1,
+    "max_depth": 7,
+    "n_estimators": 300,
+    "tree_method": "hist",
+    "eval_metric": "aucpr",
+    "random_state": 42,
+    "n_jobs": -1,
+    "scale_pos_weight": 27.434310083918007
+  },
+  "ensemble_weights": {
+    "lightgbm": 0.8,
+    "xgboost": 0.2
+  },
+  "calibration_method": "platt",
+  "decision_policy_identifier": "Balanced expected-cost",
+  "rules_enabled_by_default": false,
+  "software_versions": {
+    "numpy": "2.4.6",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "xgboost": "3.2.0",
+    "joblib": "1.6.0"
+  },
+  "frozen_system_manifest": "C:\\fraud-detection-system\\reports\\frozen_system_manifest.md",
+  "terminal_holdout_evaluation": "C:\\fraud-detection-system\\reports\\final_holdout_evaluation_summary.md",
+  "artifact_files": {
+    "feature_state": "feature_state.joblib",
+    "lightgbm": "lightgbm.txt",
+    "xgboost": "xgboost.json",
+    "calibrator": "platt_calibrator.joblib",
+    "rules": "rules_frozen_config.json",
+    "policy": "policy.json",
+    "feature_contract": "feature_contract.json"
+  },
+  "serializers": {
+    "feature_state": "joblib (pandas/sklearn/project state)",
+    "lightgbm": "LightGBM native text",
+    "xgboost": "XGBoost native JSON",
+    "calibrator": "existing joblib artifact",
+    "rules": "JSON, unchanged copy",
+    "policy": "JSON",
+    "feature_contract": "JSON"
+  },
+  "sha256": {
+    "feature_state": "2a7f86d6d4b417b4c948b0e2fa49449d8e06e147fe330d9f6c957cca00197af5",
+    "lightgbm": "201cb1747d25b4dc888269fb41cd389f989f2545a5ee6a6b3aab273d2da462cd",
+    "xgboost": "2c13ed79860cfc593623d09932c135b6b4ed0cc34502f983a7bd089218c17a6c",
+    "calibrator": "3503bf66161b5152e9de4d638b9e7932d581fc371abd6a45b6969ba6c8134f6e",
+    "rules": "3a4380831e177828c82a1a118259f83e354221fa52205b41d38aa21b58febb94",
+    "policy": "3685f31c1af31acfb68a98d4003164fc19051b938dfc37fa9503587da669470c",
+    "feature_contract": "047700d867cf360770bd0c419a0d672dd702a4a63a825569bede7897b4b54100"
+  }
+}

@@ -42,8 +42,10 @@ data/**
 **/ieee-fraud-detection.zip
 
 # Model and experiment artifacts
-models/**
+models/*
 !models/.gitkeep
+!models/frozen_v1/
+!models/monitoring_v1/
 *.joblib
 *.pkl
 *.pickle
@@ -80,3 +82,10 @@ reports/simulation_api_stderr.log
 
 docker_simulation_reports/*
 !docker_simulation_reports/.gitkeep
+
+# Ship only the immutable inference and monitoring artifacts required by the
+# frozen demo. Keep other locally generated model experiments ignored.
+!models/frozen_v1/**
+!models/monitoring_v1/**
+!models/frozen_v1/feature_state.joblib
+!models/frozen_v1/platt_calibrator.joblib

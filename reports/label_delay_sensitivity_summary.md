@@ -85,7 +85,7 @@ the configured fixed delay; real maturity is heterogeneous and should later be m
 ## MLflow
 
 - Experiment: `fraud-detection-label-delay-sensitivity`
-- Tracking URI: `sqlite:///C:/fraud-detection-system/model_comparison.db`
+- Tracking URI: `sqlite:///./model_comparison.db`
 - **0d:** `aa4e973d135e45899021e1aa95dbfbbd`
 - **7d:** `c408fd42c0704fdfa7fe2f952711f695`
 - **14d:** `2b9f665ea780452ea853b8af74ea5b25`

@@ -54,6 +54,6 @@ Do not refit boosters or feature state on TRAIN + VALIDATION for this terminal e
 
 - Python 3.11.9; packages: {'numpy': '2.4.6', 'pandas': '2.3.3', 'scikit-learn': '1.9.1', 'lightgbm': '4.7.0', 'xgboost': '3.2.0', 'mlflow': '3.16.1'}.
 - TRAIN OOF `reports/ensemble_oof_predictions.csv`; raw sources `data/raw/train_transaction.csv`, `data/raw/train_identity.csv` bounded to TRAIN/VALIDATION; calibrator `models/probability_calibrator.joblib`; rules `reports/rules_frozen_config.json`; executed notebook `notebooks/17_rules_engine.ipynb`.
-- MLflow tracking URI `sqlite:///C:/fraud-detection-system/model_comparison.db`, experiment `fraud-detection-rules-engine`, run `b1144bf4a3c442238987416521639a07`.
+- MLflow tracking URI `sqlite:///./model_comparison.db`, experiment `fraud-detection-rules-engine`, run `b1144bf4a3c442238987416521639a07`.
 
 Future HOLDOUT evaluation must use this lock without revising features, models, calibration, costs, rules, thresholds, or capacity behavior.

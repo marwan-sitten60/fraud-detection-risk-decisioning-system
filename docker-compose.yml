@@ -64,6 +64,7 @@ services:
     image: fraud-detection-dashboard:local
     environment:
       FRAUD_API_BASE_URL: http://api:8000
+      PYTHONPATH: /app
     ports:
       - "127.0.0.1:${DASHBOARD_PORT:-8501}:8501"
     volumes:

@@ -1,5 +1,5 @@
 {
-  "bundle_path": "C:\\fraud-detection-system\\models\\frozen_v1",
+  "bundle_path": "models/frozen_v1",
   "bundle_bytes": 24482230,
   "feature_count": 467,
   "golden_prefix_rows": 512,

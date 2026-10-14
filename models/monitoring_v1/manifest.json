@@ -1,0 +1,13 @@
+{
+  "artifact": "reference.json",
+  "sha256": "502e3a882c406e9dbaf971a9d965d5d79aa09557f736e57e648d3371abc0be1a",
+  "bundle_version": "frozen_v1",
+  "reference_version": "monitoring_v1",
+  "source": {
+    "inputs": "IEEE-CIS TRAIN first 413378 rows; train_identity restricted to TransactionID <= TRAIN max",
+    "scores": "reports/ensemble_oof_predictions.csv component scores, calibrated with frozen_v1 Platt artifact",
+    "decision": "TRAIN OOF scores and amount passed through unchanged Balanced decision policy",
+    "holdout_used": false
+  },
+  "created_at": "2026-10-13T09:50:54.060979+00:00"
+}

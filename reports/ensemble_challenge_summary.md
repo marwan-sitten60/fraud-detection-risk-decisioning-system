@@ -89,7 +89,7 @@ roughly doubles booster inference work and adds blend coordination.
 ## MLflow
 
 - Experiment: `fraud-detection-ensemble-challenge`
-- Tracking URI: `sqlite:///C:/fraud-detection-system/model_comparison.db`
+- Tracking URI: `sqlite:///./model_comparison.db`
 - **model_LightGBM:** `34832a1924e540c69c7c0b243c666c06`
 - **model_XGBoost:** `2f398c03db6e4ebf89be72339048a7e9`
 - **blend-lgbm-1.0-xgb-0.0:** `b5bf98142fe64a518326111c4832f554`
