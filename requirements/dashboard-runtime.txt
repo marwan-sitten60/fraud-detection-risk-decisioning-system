@@ -1,0 +1,3 @@
+# Direct runtime dependencies for the read-only Streamlit UI.
+pandas==2.3.3
+streamlit==1.65.0

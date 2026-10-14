@@ -77,3 +77,6 @@ reports/simulation_latest.json
 reports/simulation_runs/
 reports/simulation_api_stdout.log
 reports/simulation_api_stderr.log
+
+docker_simulation_reports/*
+!docker_simulation_reports/.gitkeep

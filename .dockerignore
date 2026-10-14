@@ -1,0 +1,34 @@
+# Start with an empty build context and allow only application runtime inputs.
+**
+!api/
+!api/**
+!src/
+!src/**
+!migrations/
+!migrations/**
+!models/
+!models/frozen_v1/
+!models/frozen_v1/**
+!models/monitoring_v1/
+!models/monitoring_v1/**
+!dashboard/
+!dashboard/**
+!requirements/
+!requirements/*.txt
+!alembic.ini
+!reports/
+!reports/.gitkeep
+!docker_simulation_reports/
+!docker_simulation_reports/.gitkeep
+
+# Do not send local interpreter state or machine-specific files to Docker.
+**/__pycache__/**
+**/*.py[cod]
+**/.pytest_cache/**
+**/.ruff_cache/**
+**/.venv/**
+**/venv/**
+**/env/**
+**/.env
+**/.env.*
+**/.git/**

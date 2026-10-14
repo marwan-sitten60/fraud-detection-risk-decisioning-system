@@ -1,0 +1,94 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_detection}
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting Compose}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - fraud_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - fraud_private
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: fraud-detection-api:local
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      FRAUD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-fraud_app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting Compose}@db:5432/${POSTGRES_DB:-fraud_detection}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - fraud_private
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: fraud-detection-api:local
+    environment:
+      FRAUD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-fraud_app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting Compose}@db:5432/${POSTGRES_DB:-fraud_detection}
+      FRAUD_BUNDLE_PATH: /app/models/frozen_v1
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2).read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 12
+      start_period: 120s
+    restart: unless-stopped
+    networks:
+      - fraud_private
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    image: fraud-detection-dashboard:local
+    environment:
+      FRAUD_API_BASE_URL: http://api:8000
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8501}:8501"
+    volumes:
+      - type: bind
+        source: ${SIMULATION_REPORTS_DIR:-./docker_simulation_reports}
+        target: /app/reports/simulation_runs
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"]
+      interval: 20s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - fraud_private
+
+volumes:
+  fraud_postgres_data:
+
+networks:
+  fraud_private:
+    driver: bridge
